@@ -18,6 +18,26 @@ export async function updateSession(request: NextRequest) {
       },
     },
   );
-  await supabase.auth.getClaims();
+  const { data } = await supabase.auth.getClaims();
+  const userId = typeof data?.claims?.sub === "string" ? data.claims.sub : null;
+
+  if (userId) {
+    const { data: control } = await supabase
+      .from("account_controls")
+      .select("status")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (control?.status === "suspended") {
+      await supabase.auth.signOut({ scope: "local" });
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/prihlasenie";
+      loginUrl.search = "";
+      loginUrl.searchParams.set("stav", "pozastaveny");
+      const redirectResponse = NextResponse.redirect(loginUrl);
+      response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
+      return redirectResponse;
+    }
+  }
   return response;
 }
