@@ -14,10 +14,16 @@ const titles: Record<Mode, string> = {
   reset: "Nastaviť nové heslo",
 };
 
-export function AuthForm({ mode, verificationError = false }: { mode: Mode; verificationError?: boolean }) {
+export function AuthForm({ mode, verificationError = false, suspended = false }: { mode: Mode; verificationError?: boolean; suspended?: boolean }) {
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState(verificationError ? "Overovací odkaz je neplatný alebo vypršal." : "");
-  const [error, setError] = useState(verificationError);
+  const [message, setMessage] = useState(
+    suspended
+      ? "Tento účet je dočasne pozastavený. Ak si myslíte, že ide o omyl, kontaktujte podporu Project Arena."
+      : verificationError
+        ? "Overovací odkaz už bol použitý alebo vypršal. Ak ste ho otvorili prvýkrát, skúste sa prihlásiť — účet už môže byť potvrdený."
+        : "",
+  );
+  const [error, setError] = useState(verificationError || suspended);
   const router = useRouter();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -29,6 +35,7 @@ export function AuthForm({ mode, verificationError = false }: { mode: Mode; veri
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const name = String(form.get("name") ?? "").trim();
+    const marketingConsent = form.get("marketingConsent") === "on";
     const supabase = createClient();
     const origin = window.location.origin;
     let result: { error: { message: string } | null };
@@ -37,12 +44,32 @@ export function AuthForm({ mode, verificationError = false }: { mode: Mode; veri
       result = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: name }, emailRedirectTo: `${origin}/auth/callback` },
+        options: {
+          data: {
+            full_name: name,
+            marketing_consent: marketingConsent,
+            privacy_version: "2026-09-04",
+          },
+          emailRedirectTo: `${origin}/auth/callback`,
+        },
       });
       if (!result.error) setMessage("Účet je vytvorený. Skontrolujte e-mail a potvrďte registráciu.");
     } else if (mode === "login") {
       result = await supabase.auth.signInWithPassword({ email, password });
       if (!result.error) {
+        const { data: userData } = await supabase.auth.getUser();
+        const { data: control } = await supabase
+          .from("account_controls")
+          .select("status")
+          .eq("user_id", userData.user?.id ?? "")
+          .maybeSingle();
+        if (control?.status === "suspended") {
+          await supabase.auth.signOut({ scope: "local" });
+          setError(true);
+          setMessage("Tento účet je dočasne pozastavený. Ak si myslíte, že ide o omyl, kontaktujte podporu Project Arena.");
+          setPending(false);
+          return;
+        }
         router.push("/ucet");
         router.refresh();
       }
@@ -82,6 +109,14 @@ export function AuthForm({ mode, verificationError = false }: { mode: Mode; veri
           {mode !== "reset" && <Field label="E-mail" name="email" type="email" autoComplete="email" />}
           {mode !== "forgot" && (
             <Field label={mode === "reset" ? "Nové heslo" : "Heslo"} name="password" type="password" minLength={8} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+          )}
+          {mode === "signup" && (
+            <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+              <input className="mt-1 h-4 w-4 accent-emerald-700" name="marketingConsent" type="checkbox" />
+              <span>
+                Chcem dostávať e-mailom novinky, ponuky a zľavy Project Arena. Súhlas je dobrovoľný a môžem ho kedykoľvek odvolať.
+              </span>
+            </label>
           )}
           {message && <p className={`rounded-xl p-3 text-sm ${error ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`} role="status">{message}</p>}
           <button className="btn-primary w-full justify-center" disabled={pending} type="submit">
