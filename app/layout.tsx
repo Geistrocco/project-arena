@@ -5,13 +5,13 @@ import { Footer } from "@/components/footer";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: { default: "Arena — športové turnaje", template: "%s | Arena" },
+  title: { default: "Tournio — športové turnaje", template: "%s | Tournio" },
   description: "Objav športové turnaje na Slovensku a v Česku.",
   openGraph: {
-    title: "Arena — športové turnaje",
+    title: "Tournio — športové turnaje",
     description: "Objav športové turnaje na Slovensku a v Česku.",
     url: siteUrl,
-    siteName: "Arena",
+    siteName: "Tournio",
     locale: "sk_SK",
     type: "website",
   },

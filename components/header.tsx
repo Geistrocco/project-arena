@@ -24,7 +24,7 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
         <Link href="/" className="flex items-center gap-2.5 text-xl font-extrabold tracking-tight text-ink" onClick={() => setOpen(false)}>
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-arena-600 text-white"><TrophyIcon /></span>Arena
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-arena-600 text-white"><TrophyIcon /></span>Tournio
         </Link>
         <nav className="hidden items-center gap-8 md:flex" aria-label="Hlavná navigácia">
           <Link className="nav-link" href="/">Turnaje</Link>
