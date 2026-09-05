@@ -17,7 +17,7 @@ type UserRole = { user_id: string; role: "owner" | "admin" };
 
 const date = new Intl.DateTimeFormat("sk-SK", { dateStyle: "medium", timeStyle: "short" });
 
-export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<{ q?: string; stav?: string; mail?: string }> }) {
+export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<{ q?: string; stav?: string; mail?: string; roleMail?: string }> }) {
   const supabase = await createClient();
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
   const adminId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;
@@ -69,6 +69,8 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
 
       {params.mail === "sent" && <p className="mt-6 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 font-semibold text-green-800">Zľava bola uložená a používateľovi sme poslali e-mail.</p>}
       {params.mail === "failed" && <p className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 font-semibold text-amber-900">Zľava bola uložená, ale e-mail sa nepodarilo odoslať. Skontrolujte nastavenie Resend.</p>}
+      {params.roleMail === "sent" && <p className="mt-6 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 font-semibold text-green-800">Administrátorské oprávnenie bolo zmenené a používateľovi sme poslali e-mail.</p>}
+      {params.roleMail === "failed" && <p className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 font-semibold text-amber-900">Oprávnenie bolo zmenené, ale e-mail sa nepodarilo odoslať.</p>}
 
       <form className="mt-8 grid gap-3 rounded-2xl border bg-white p-4 shadow-sm sm:grid-cols-[1fr_200px_auto]" method="get">
         <input className="field" defaultValue={params.q} name="q" placeholder="Hľadať meno alebo e-mail" />
