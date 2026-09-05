@@ -136,6 +136,17 @@ export async function reviewTeamClaim(formData: FormData) {
   revalidatePath("/ucet");
 }
 
+export async function reviewTeamCreationRequest(formData: FormData) {
+  const requestId = String(formData.get("requestId") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  if (!uuidPattern.test(requestId) || !["approved", "rejected"].includes(decision)) throw new Error("Neplatná žiadosť.");
+  const { supabase } = await requireAdmin();
+  const { error } = await supabase.rpc("review_team_creation_request", { p_request_id: requestId, p_decision: decision });
+  if (error) throw new Error("Návrh tímu sa nepodarilo spracovať.");
+  revalidatePath("/admin/timy");
+  revalidatePath("/ucet");
+}
+
 export async function setAdminRole(formData: FormData) {
   const targetUserId = String(formData.get("userId") ?? "");
   const enabled = String(formData.get("enabled") ?? "") === "true";
