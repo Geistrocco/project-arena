@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { sendDiscountNotification } from "@/lib/email/discount-notification";
+import { sendAdminRoleNotification } from "@/lib/email/admin-role-notification";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -144,12 +145,18 @@ export async function setAdminRole(formData: FormData) {
   if (role !== "owner") throw new Error("Administrátorov môže určovať iba vlastník Tournio.");
   if (targetUserId === userId) throw new Error("Vlastník nemôže meniť vlastné oprávnenie.");
 
+  const [{ data: profile }, { data: ownerProfile }] = await Promise.all([
+    supabase.from("profiles").select("full_name, email").eq("id", targetUserId).maybeSingle(),
+    supabase.from("profiles").select("full_name").eq("id", userId).maybeSingle(),
+  ]);
+  if (!profile?.email) throw new Error("Používateľ nemá uložený e-mail.");
+
   if (enabled) {
-    const { error } = await supabase.from("user_roles").insert({ user_id: targetUserId, role: "admin" });
-    if (error) throw new Error("Administrátorské oprávnenie sa nepodarilo pridať.");
+    const { data: changedRole, error } = await supabase.from("user_roles").insert({ user_id: targetUserId, role: "admin" }).select("user_id").single();
+    if (error || !changedRole) throw new Error("Administrátorské oprávnenie sa nepodarilo pridať.");
   } else {
-    const { error } = await supabase.from("user_roles").delete().eq("user_id", targetUserId).eq("role", "admin");
-    if (error) throw new Error("Administrátorské oprávnenie sa nepodarilo odobrať.");
+    const { data: changedRole, error } = await supabase.from("user_roles").delete().eq("user_id", targetUserId).eq("role", "admin").select("user_id").maybeSingle();
+    if (error || !changedRole) throw new Error("Administrátorské oprávnenie sa nepodarilo odobrať.");
   }
 
   await supabase.from("admin_audit_log").insert({
@@ -158,6 +165,32 @@ export async function setAdminRole(formData: FormData) {
     action: enabled ? "admin_role_granted" : "admin_role_revoked",
     details: {},
   });
+
+  try {
+    await sendAdminRoleNotification({
+      to: profile.email,
+      fullName: profile.full_name,
+      grantedBy: ownerProfile?.full_name || "Vlastník Tournio",
+      enabled,
+      changeId: `${targetUserId}-${enabled ? "granted" : "revoked"}-${Date.now()}`,
+    });
+    await supabase.from("admin_audit_log").insert({
+      actor_user_id: userId,
+      target_user_id: targetUserId,
+      action: enabled ? "admin_granted_email_sent" : "admin_revoked_email_sent",
+      details: {},
+    });
+  } catch (mailError) {
+    await supabase.from("admin_audit_log").insert({
+      actor_user_id: userId,
+      target_user_id: targetUserId,
+      action: "admin_role_email_failed",
+      details: { error: mailError instanceof Error ? mailError.message.slice(0, 500) : "unknown" },
+    });
+    revalidatePath("/admin/pouzivatelia");
+    redirect("/admin/pouzivatelia?roleMail=failed");
+  }
   revalidatePath("/admin/pouzivatelia");
   revalidatePath("/ucet");
+  redirect("/admin/pouzivatelia?roleMail=sent");
 }
