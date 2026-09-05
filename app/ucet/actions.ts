@@ -25,10 +25,12 @@ export async function setMarketingConsent(formData: FormData) {
 export async function requestTeamAccess(formData: FormData) {
   const teamId = String(formData.get("teamId") ?? "");
   const requestedRole = String(formData.get("requestedRole") ?? "");
-  const message = String(formData.get("message") ?? "").trim().slice(0, 500);
+  const phone = String(formData.get("phone") ?? "").trim().slice(0, 30);
+  const message = String(formData.get("message") ?? "").trim().slice(0, 1000);
   if (!/^[0-9a-f-]{36}$/i.test(teamId) || !["coach", "manager", "club_admin"].includes(requestedRole)) {
     throw new Error("Neplatný tím alebo funkcia.");
   }
+  if (phone && !/^[+0-9][0-9 ()/-]{6,29}$/.test(phone)) throw new Error("Zadajte platné telefónne číslo.");
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
@@ -39,6 +41,7 @@ export async function requestTeamAccess(formData: FormData) {
     team_id: teamId,
     user_id: userId,
     requested_role: requestedRole,
+    phone: phone || null,
     message: message || null,
   });
   if (insertError?.code === "23505") throw new Error("Žiadosť o tento tím už čaká na schválenie.");
