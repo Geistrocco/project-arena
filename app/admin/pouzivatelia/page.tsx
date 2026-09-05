@@ -16,7 +16,7 @@ type Consent = { user_id: string; granted: boolean; recorded_at: string };
 
 const date = new Intl.DateTimeFormat("sk-SK", { dateStyle: "medium", timeStyle: "short" });
 
-export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<{ q?: string; stav?: string }> }) {
+export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<{ q?: string; stav?: string; mail?: string }> }) {
   const supabase = await createClient();
   const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
   const adminId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;
@@ -64,6 +64,9 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
         <Stat label="Marketingový súhlas" value={marketing} />
       </div>
 
+      {params.mail === "sent" && <p className="mt-6 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 font-semibold text-green-800">Zľava bola uložená a používateľovi sme poslali e-mail.</p>}
+      {params.mail === "failed" && <p className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 font-semibold text-amber-900">Zľava bola uložená, ale e-mail sa nepodarilo odoslať. Skontrolujte nastavenie Resend.</p>}
+
       <form className="mt-8 grid gap-3 rounded-2xl border bg-white p-4 shadow-sm sm:grid-cols-[1fr_200px_auto]" method="get">
         <input className="field" defaultValue={params.q} name="q" placeholder="Hľadať meno alebo e-mail" />
         <select className="field" defaultValue={statusFilter} name="stav">
@@ -106,7 +109,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                 <label><span className="label">Zľava %</span><input className="field" defaultValue={control?.discount_percent ?? 0} max="100" min="0" name="discountPercent" type="number" /></label>
                 <label><span className="label">Poznámka</span><input className="field" defaultValue={control?.discount_note ?? ""} name="discountNote" placeholder="Napr. partnerský klub" /></label>
                 <label><span className="label">Platí do</span><input className="field" defaultValue={control?.discount_expires_at?.slice(0, 10) ?? ""} name="discountExpiresAt" type="date" /></label>
-                <button className="btn-secondary self-end justify-center" type="submit">Uložiť zľavu</button>
+                <button className="btn-secondary self-end justify-center" type="submit">Uložiť a poslať e-mail</button>
               </form>
             </article>
           );
