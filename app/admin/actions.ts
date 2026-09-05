@@ -18,8 +18,13 @@ async function requireAdmin() {
     .select("role")
     .eq("user_id", userId)
     .maybeSingle();
-  if (role?.role !== "admin") throw new Error("Nemáte administrátorské oprávnenie.");
-  return { supabase, userId };
+  if (!role || !["owner", "admin"].includes(role.role)) throw new Error("Nemáte administrátorské oprávnenie.");
+  return { supabase, userId, role: role.role };
+}
+
+async function ensureTargetIsNotOwner(supabase: Awaited<ReturnType<typeof createClient>>, targetUserId: string, actorRole: string) {
+  const { data: targetRole } = await supabase.from("user_roles").select("role").eq("user_id", targetUserId).maybeSingle();
+  if (targetRole?.role === "owner" && actorRole !== "owner") throw new Error("Administrátor nemôže meniť účet vlastníka.");
 }
 
 export async function setAccountStatus(formData: FormData) {
@@ -30,10 +35,11 @@ export async function setAccountStatus(formData: FormData) {
     throw new Error("Neplatné údaje používateľa.");
   }
 
-  const { supabase, userId } = await requireAdmin();
+  const { supabase, userId, role } = await requireAdmin();
   if (targetUserId === userId && status === "suspended") {
     throw new Error("Administrátor nemôže pozastaviť vlastný účet.");
   }
+  await ensureTargetIsNotOwner(supabase, targetUserId, role);
 
   const { data: updated, error } = await supabase
     .from("account_controls")
@@ -60,7 +66,8 @@ export async function saveDiscount(formData: FormData) {
   }
   if (discountExpiresAt && !/^\d{4}-\d{2}-\d{2}$/.test(discountExpiresAt)) throw new Error("Neplatný dátum platnosti.");
 
-  const { supabase, userId } = await requireAdmin();
+  const { supabase, userId, role } = await requireAdmin();
+  await ensureTargetIsNotOwner(supabase, targetUserId, role);
   const [{ data: profile }, { data: previous }] = await Promise.all([
     supabase.from("profiles").select("full_name, email").eq("id", targetUserId).maybeSingle(),
     supabase.from("account_controls").select("discount_percent, discount_note, discount_expires_at").eq("user_id", targetUserId).maybeSingle(),
@@ -125,5 +132,32 @@ export async function reviewTeamClaim(formData: FormData) {
   const { error } = await supabase.rpc("review_team_claim", { p_claim_id: claimId, p_decision: decision });
   if (error) throw new Error("Žiadosť sa nepodarilo spracovať.");
   revalidatePath("/admin/timy");
+  revalidatePath("/ucet");
+}
+
+export async function setAdminRole(formData: FormData) {
+  const targetUserId = String(formData.get("userId") ?? "");
+  const enabled = String(formData.get("enabled") ?? "") === "true";
+  if (!uuidPattern.test(targetUserId)) throw new Error("Neplatný používateľ.");
+
+  const { supabase, userId, role } = await requireAdmin();
+  if (role !== "owner") throw new Error("Administrátorov môže určovať iba vlastník Tournio.");
+  if (targetUserId === userId) throw new Error("Vlastník nemôže meniť vlastné oprávnenie.");
+
+  if (enabled) {
+    const { error } = await supabase.from("user_roles").insert({ user_id: targetUserId, role: "admin" });
+    if (error) throw new Error("Administrátorské oprávnenie sa nepodarilo pridať.");
+  } else {
+    const { error } = await supabase.from("user_roles").delete().eq("user_id", targetUserId).eq("role", "admin");
+    if (error) throw new Error("Administrátorské oprávnenie sa nepodarilo odobrať.");
+  }
+
+  await supabase.from("admin_audit_log").insert({
+    actor_user_id: userId,
+    target_user_id: targetUserId,
+    action: enabled ? "admin_role_granted" : "admin_role_revoked",
+    details: {},
+  });
+  revalidatePath("/admin/pouzivatelia");
   revalidatePath("/ucet");
 }
