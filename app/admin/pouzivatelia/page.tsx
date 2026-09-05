@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { saveDiscount, setAccountStatus } from "@/app/admin/actions";
+import { saveDiscount, setAccountStatus, setAdminRole } from "@/app/admin/actions";
 
 type Profile = { id: string; full_name: string; email: string | null; created_at: string };
 type Control = {
@@ -13,6 +13,7 @@ type Control = {
   discount_expires_at: string | null;
 };
 type Consent = { user_id: string; granted: boolean; recorded_at: string };
+type UserRole = { user_id: string; role: "owner" | "admin" };
 
 const date = new Intl.DateTimeFormat("sk-SK", { dateStyle: "medium", timeStyle: "short" });
 
@@ -23,16 +24,18 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
   if (claimsError || !adminId) redirect("/prihlasenie");
 
   const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", adminId).maybeSingle();
-  if (role?.role !== "admin") redirect("/ucet");
+  if (!role || !["owner", "admin"].includes(role.role)) redirect("/ucet");
 
-  const [{ data: profiles }, { data: controls }, { data: consents }] = await Promise.all([
+  const [{ data: profiles }, { data: controls }, { data: consents }, { data: userRoles }] = await Promise.all([
     supabase.from("profiles").select("id, full_name, email, created_at").order("created_at", { ascending: false }),
     supabase.from("account_controls").select("user_id, status, suspension_reason, discount_percent, discount_note, discount_expires_at"),
     supabase.from("marketing_consent_events").select("user_id, granted, recorded_at").order("recorded_at", { ascending: false }),
+    supabase.from("user_roles").select("user_id, role"),
   ]);
 
   const controlByUser = new Map((controls as Control[] | null)?.map((item) => [item.user_id, item]));
   const latestConsent = new Map<string, Consent>();
+  const roleByUser = new Map((userRoles as UserRole[] | null)?.map((item) => [item.user_id, item.role]));
   for (const consent of (consents as Consent[] | null) ?? []) {
     if (!latestConsent.has(consent.user_id)) latestConsent.set(consent.user_id, consent);
   }
@@ -80,6 +83,9 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
           const control = controlByUser.get(profile.id);
           const isSuspended = control?.status === "suspended";
           const consent = latestConsent.get(profile.id)?.granted === true;
+          const userRole = roleByUser.get(profile.id);
+          const isOwner = userRole === "owner";
+          const protectedFromAdmin = isOwner && role.role !== "owner";
           return (
             <article className="rounded-2xl border bg-white p-5 shadow-sm" key={profile.id}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -87,7 +93,8 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-extrabold text-ink">{profile.full_name || "Bez mena"}</h2>
                     <span className={isSuspended ? "status-full" : "status-open"}>{isSuspended ? "Pozastavený" : "Aktívny"}</span>
-                    {profile.id === adminId && <span className="sport-pill">Admin</span>}
+                    {isOwner && <span className="sport-pill">Vlastník</span>}
+                    {userRole === "admin" && <span className="sport-pill">Administrátor</span>}
                   </div>
                   <p className="mt-1 text-sm text-slate-600">{profile.email || "E-mail nie je uložený"}</p>
                   <p className="mt-1 text-xs text-slate-500">Registrácia: {date.format(new Date(profile.created_at))} · Marketing: {consent ? "áno" : "nie"}</p>
@@ -98,7 +105,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                   <input name="userId" type="hidden" value={profile.id} />
                   <input name="status" type="hidden" value={isSuspended ? "active" : "suspended"} />
                   {!isSuspended && <input className="field" name="reason" placeholder="Dôvod pozastavenia" required />}
-                  <button className={isSuspended ? "btn-secondary justify-center" : "inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-5 text-sm font-bold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-300"} disabled={profile.id === adminId && !isSuspended} type="submit">
+                  <button className={isSuspended ? "btn-secondary justify-center" : "inline-flex min-h-11 items-center justify-center rounded-xl bg-red-700 px-5 text-sm font-bold text-white transition hover:bg-red-800 disabled:cursor-not-allowed disabled:bg-slate-300"} disabled={(profile.id === adminId && !isSuspended) || protectedFromAdmin} type="submit">
                     {isSuspended ? "Obnoviť účet" : "Pozastaviť"}
                   </button>
                 </form>
@@ -109,8 +116,9 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                 <label><span className="label">Zľava %</span><input className="field" defaultValue={control?.discount_percent ?? 0} max="100" min="0" name="discountPercent" type="number" /></label>
                 <label><span className="label">Poznámka</span><input className="field" defaultValue={control?.discount_note ?? ""} name="discountNote" placeholder="Napr. partnerský klub" /></label>
                 <label><span className="label">Platí do</span><input className="field" defaultValue={control?.discount_expires_at?.slice(0, 10) ?? ""} name="discountExpiresAt" type="date" /></label>
-                <button className="btn-secondary self-end justify-center" type="submit">Uložiť a poslať e-mail</button>
+                <button className="btn-secondary self-end justify-center" disabled={protectedFromAdmin} type="submit">Uložiť a poslať e-mail</button>
               </form>
+              {role.role === "owner" && !isOwner && <form action={setAdminRole} className="mt-4 flex justify-end border-t pt-4"><input name="userId" type="hidden" value={profile.id} /><input name="enabled" type="hidden" value={userRole === "admin" ? "false" : "true"} /><button className="btn-secondary" type="submit">{userRole === "admin" ? "Odobrať administrátora" : "Pridať administrátora"}</button></form>}
             </article>
           );
         })}

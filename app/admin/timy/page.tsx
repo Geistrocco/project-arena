@@ -11,7 +11,7 @@ export default async function AdminTeamsPage() {
   const adminId = typeof auth?.claims?.sub === "string" ? auth.claims.sub : null;
   if (!adminId) redirect("/prihlasenie");
   const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", adminId).maybeSingle();
-  if (role?.role !== "admin") redirect("/ucet");
+  if (!role || !["owner", "admin"].includes(role.role)) redirect("/ucet");
 
   const { data: claims } = await supabase.from("team_claim_requests").select("id, team_id, user_id, requested_role, phone, message, created_at").eq("status", "pending").order("created_at");
   const rows = (claims as Claim[] | null) ?? [];
