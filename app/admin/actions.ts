@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { sendDiscountNotification } from "@/lib/email/discount-notification";
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -56,21 +58,63 @@ export async function saveDiscount(formData: FormData) {
   if (!uuidPattern.test(targetUserId) || !Number.isInteger(discountPercent) || discountPercent < 0 || discountPercent > 100) {
     throw new Error("Neplatná zľava.");
   }
+  if (discountExpiresAt && !/^\d{4}-\d{2}-\d{2}$/.test(discountExpiresAt)) throw new Error("Neplatný dátum platnosti.");
 
   const { supabase, userId } = await requireAdmin();
+  const [{ data: profile }, { data: previous }] = await Promise.all([
+    supabase.from("profiles").select("full_name, email").eq("id", targetUserId).maybeSingle(),
+    supabase.from("account_controls").select("discount_percent, discount_note, discount_expires_at").eq("user_id", targetUserId).maybeSingle(),
+  ]);
+  if (!profile?.email || !previous) throw new Error("Používateľ nemá uložený e-mail alebo účet.");
+  const expiresAtDate = discountExpiresAt ? new Date(`${discountExpiresAt}T23:59:59.999Z`) : null;
+  if (expiresAtDate && Number.isNaN(expiresAtDate.getTime())) throw new Error("Neplatný dátum platnosti.");
+  const expiresAt = expiresAtDate?.toISOString() ?? null;
+  const unchanged = previous.discount_percent === discountPercent
+    && (previous.discount_note ?? "") === discountNote
+    && (previous.discount_expires_at ?? null) === expiresAt;
+  if (unchanged) throw new Error("Zľava sa nezmenila, e-mail nebol odoslaný.");
+
   const { data: updated, error } = await supabase
     .from("account_controls")
     .update({
       discount_percent: discountPercent,
       discount_note: discountNote || null,
-      discount_expires_at: discountExpiresAt ? new Date(`${discountExpiresAt}T23:59:59.999Z`).toISOString() : null,
+      discount_expires_at: expiresAt,
       updated_by: userId,
     })
     .eq("user_id", targetUserId)
-    .select("user_id")
+    .select("user_id, updated_at")
     .maybeSingle();
   if (error || !updated) throw new Error("Zľavu sa nepodarilo uložiť.");
+
+  try {
+    await sendDiscountNotification({
+      to: profile.email,
+      fullName: profile.full_name,
+      previousPercent: previous.discount_percent,
+      discountPercent,
+      discountNote: discountNote || null,
+      discountExpiresAt: expiresAt,
+      changeId: `${targetUserId}-${updated.updated_at}`,
+    });
+    await supabase.from("admin_audit_log").insert({
+      actor_user_id: userId,
+      target_user_id: targetUserId,
+      action: "discount_email_sent",
+      details: { discount_percent: discountPercent },
+    });
+  } catch (mailError) {
+    await supabase.from("admin_audit_log").insert({
+      actor_user_id: userId,
+      target_user_id: targetUserId,
+      action: "discount_email_failed",
+      details: { discount_percent: discountPercent, error: mailError instanceof Error ? mailError.message.slice(0, 500) : "unknown" },
+    });
+    revalidatePath("/admin/pouzivatelia");
+    redirect("/admin/pouzivatelia?mail=failed");
+  }
   revalidatePath("/admin/pouzivatelia");
+  redirect("/admin/pouzivatelia?mail=sent");
 }
 
 export async function reviewTeamClaim(formData: FormData) {
