@@ -27,7 +27,7 @@ export default async function AccountPage() {
         <p className="mt-3 text-slate-600">Prihlásený účet: {email}</p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link className="btn-primary" href="/vytvorit-turnaj">Vytvoriť turnaj</Link>
-          {role?.role === "admin" && <Link className="btn-secondary" href="/admin/pouzivatelia">Administrácia</Link>}
+          {role && ["owner", "admin"].includes(role.role) && <Link className="btn-secondary" href="/admin/pouzivatelia">Administrácia</Link>}
         </div>
 
         <div className="mt-8 border-t border-slate-200 pt-6">
