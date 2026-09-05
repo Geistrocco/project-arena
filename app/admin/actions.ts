@@ -72,3 +72,14 @@ export async function saveDiscount(formData: FormData) {
   if (error || !updated) throw new Error("Zľavu sa nepodarilo uložiť.");
   revalidatePath("/admin/pouzivatelia");
 }
+
+export async function reviewTeamClaim(formData: FormData) {
+  const claimId = String(formData.get("claimId") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  if (!uuidPattern.test(claimId) || !["approved", "rejected"].includes(decision)) throw new Error("Neplatná žiadosť.");
+  const { supabase } = await requireAdmin();
+  const { error } = await supabase.rpc("review_team_claim", { p_claim_id: claimId, p_decision: decision });
+  if (error) throw new Error("Žiadosť sa nepodarilo spracovať.");
+  revalidatePath("/admin/timy");
+  revalidatePath("/ucet");
+}
