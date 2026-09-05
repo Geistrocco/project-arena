@@ -1,6 +1,6 @@
-# Project Arena
+# Tournio
 
-Funkčný prototyp platformy na vyhľadávanie a vytváranie športových turnajov. Používa Next.js, TypeScript, Tailwind CSS a lokálne testovacie dáta.
+Platforma na vyhľadávanie a vytváranie športových turnajov. Používa Next.js, TypeScript, Tailwind CSS, Supabase a Resend.
 
 ## Lokálne spustenie
 
@@ -29,7 +29,7 @@ pnpm build
 5. Pridajte premennú prostredia `NEXT_PUBLIC_SITE_URL` s budúcou verejnou adresou.
 6. Spustite **Deploy**. Po prvom nasadení upravte premennú na skutočnú doménu a vykonajte Redeploy.
 
-Vercel automaticky rozpozná `pnpm-lock.yaml` a použije deklarovanú verziu pnpm. Projekt nepotrebuje databázu ani ďalšie služby.
+Vercel automaticky rozpozná `pnpm-lock.yaml` a použije deklarovanú verziu pnpm. Autentifikácia a správa používateľov používajú Supabase; transakčné e-maily odosiela Resend cez overenú doménu `tournio.sk`.
 
 ## Premenné prostredia
 
@@ -37,4 +37,4 @@ Skopírujte `.env.example` ako `.env.local` iba pre lokálne nastavenia. Súbory
 
 | Premenná | Povinná | Účel |
 | --- | --- | --- |
-| `NEXT_PUBLIC_SITE_URL` | Odporúčaná | Kanonická URL pre metadata, sitemapu a robots.txt |
+| `NEXT_PUBLIC_SITE_URL` | Povinná v produkcii | Kanonická URL pre metadata, sitemapu a robots.txt (`https://tournio.sk`) |

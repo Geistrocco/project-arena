@@ -18,7 +18,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState(
     suspended
-      ? "Tento účet je dočasne pozastavený. Ak si myslíte, že ide o omyl, kontaktujte podporu Project Arena."
+      ? "Tento účet je dočasne pozastavený. Ak si myslíte, že ide o omyl, kontaktujte podporu Tournio."
       : verificationError
         ? "Overovací odkaz už bol použitý alebo vypršal. Ak ste ho otvorili prvýkrát, skúste sa prihlásiť — účet už môže byť potvrdený."
         : "",
@@ -66,7 +66,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
         if (control?.status === "suspended") {
           await supabase.auth.signOut({ scope: "local" });
           setError(true);
-          setMessage("Tento účet je dočasne pozastavený. Ak si myslíte, že ide o omyl, kontaktujte podporu Project Arena.");
+          setMessage("Tento účet je dočasne pozastavený. Ak si myslíte, že ide o omyl, kontaktujte podporu Tournio.");
           setPending(false);
           return;
         }
@@ -102,7 +102,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
   return (
     <section className="mx-auto max-w-md px-5 py-16 sm:py-24">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <p className="eyebrow">Project Arena</p>
+        <p className="eyebrow">Tournio</p>
         <h1 className="mt-2 text-3xl font-extrabold text-ink">{titles[mode]}</h1>
         <form className="mt-8 space-y-5" onSubmit={submit}>
           {mode === "signup" && <Field label="Meno a priezvisko" name="name" autoComplete="name" />}
@@ -114,7 +114,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
             <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
               <input className="mt-1 h-4 w-4 accent-emerald-700" name="marketingConsent" type="checkbox" />
               <span>
-                Chcem dostávať e-mailom novinky, ponuky a zľavy Project Arena. Súhlas je dobrovoľný a môžem ho kedykoľvek odvolať.
+                Chcem dostávať e-mailom novinky, ponuky a zľavy Tournio. Súhlas je dobrovoľný a môžem ho kedykoľvek odvolať.
               </span>
             </label>
           )}
