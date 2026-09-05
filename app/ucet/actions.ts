@@ -21,3 +21,28 @@ export async function setMarketingConsent(formData: FormData) {
   revalidatePath("/ucet");
   revalidatePath("/admin/pouzivatelia");
 }
+
+export async function requestTeamAccess(formData: FormData) {
+  const teamId = String(formData.get("teamId") ?? "");
+  const requestedRole = String(formData.get("requestedRole") ?? "");
+  const message = String(formData.get("message") ?? "").trim().slice(0, 500);
+  if (!/^[0-9a-f-]{36}$/i.test(teamId) || !["coach", "manager", "club_admin"].includes(requestedRole)) {
+    throw new Error("Neplatný tím alebo funkcia.");
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  const userId = typeof data?.claims?.sub === "string" ? data.claims.sub : null;
+  if (error || !userId) throw new Error("Neautorizovaný prístup.");
+
+  const { error: insertError } = await supabase.from("team_claim_requests").insert({
+    team_id: teamId,
+    user_id: userId,
+    requested_role: requestedRole,
+    message: message || null,
+  });
+  if (insertError?.code === "23505") throw new Error("Žiadosť o tento tím už čaká na schválenie.");
+  if (insertError) throw new Error("Žiadosť sa nepodarilo odoslať.");
+  revalidatePath("/ucet");
+  revalidatePath("/admin/timy");
+}
