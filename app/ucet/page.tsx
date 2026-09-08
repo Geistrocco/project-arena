@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createPlayerProfile, inviteGuardian, inviteParentToTeam, requestNewTeam, requestTeamAccess, respondToGuardianInvitation, respondToTeamPlayerInvitation, setMarketingConsent } from "@/app/ucet/actions";
 
+type TeamRosterPlayer = { team_id: string; player_id: string; full_name: string; joined_at: string; status: "active" | "inactive" };
+
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ stav?: string }> }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -11,7 +13,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const email = typeof data.claims.email === "string" ? data.claims.email : "";
   const metadata = data.claims.user_metadata as { full_name?: string } | undefined;
   const userId = typeof data.claims.sub === "string" ? data.claims.sub : "";
-  const [{ data: role }, { data: consentEvents }, { data: teams }, { data: claims }, { data: memberships }, { data: teamRequests }, { data: players }, { data: guardianLinks }, { data: guardianInvitations }, { data: teamPlayerInvitations }] = await Promise.all([
+  const [{ data: role }, { data: consentEvents }, { data: teams }, { data: claims }, { data: memberships }, { data: teamRequests }, { data: players }, { data: guardianLinks }, { data: guardianInvitations }, { data: teamPlayerInvitations }, { data: managedRoster }] = await Promise.all([
     supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
     supabase.from("marketing_consent_events").select("granted").eq("user_id", userId).order("recorded_at", { ascending: false }).limit(1),
     supabase.from("club_teams").select("id, name, category, season").eq("status", "active").order("name"),
@@ -22,6 +24,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     supabase.from("player_guardians").select("player_id, guardian_user_id, relationship, is_primary"),
     supabase.from("guardian_invitations").select("id, player_id, player_name, invited_email, relationship, invited_by, status, expires_at").order("created_at", { ascending: false }),
     supabase.from("team_player_invitations").select("id, team_id, invited_email, invited_by, status, expires_at").order("created_at", { ascending: false }),
+    supabase.rpc("get_managed_team_roster"),
   ]);
   const marketingConsent = consentEvents?.[0]?.granted === true;
   const playerById = new Map(players?.map((player) => [player.id, player]));
@@ -31,6 +34,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const sentInvitations = guardianInvitations?.filter((invitation) => invitation.invited_by === userId) ?? [];
   const teamById = new Map(teams?.map((team) => [team.id, team]));
   const incomingTeamInvitations = teamPlayerInvitations?.filter((invitation) => invitation.status === "pending" && invitation.invited_email === email.toLowerCase() && new Date(invitation.expires_at) > new Date()) ?? [];
+  const rosterByTeam = new Map<string, TeamRosterPlayer[]>();
+  (managedRoster as TeamRosterPlayer[] | null)?.forEach((player) => rosterByTeam.set(player.team_id, [...(rosterByTeam.get(player.team_id) ?? []), player]));
   const date = new Intl.DateTimeFormat("sk-SK", { dateStyle: "medium", timeZone: "Europe/Bratislava" });
 
   return (
@@ -142,7 +147,18 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <h3 className="font-bold text-ink">Moje overené tímy ({memberships?.length})</h3>
             {params.stav === "timove-pozvanie-odoslane" && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800" role="status">Pozvanie rodičovi bolo úspešne odoslané e-mailom.</div>}
             {memberships?.map((membership) => <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4" key={membership.team_id}>
-              <p className="font-bold text-ink">{teamById.get(membership.team_id)?.name ?? "Tím"}</p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-bold text-ink">{teamById.get(membership.team_id)?.name ?? "Tím"}</p>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600">{rosterByTeam.get(membership.team_id)?.filter((player) => player.status === "active").length ?? 0} hráčov</span>
+              </div>
+              <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                {(rosterByTeam.get(membership.team_id)?.length ?? 0) > 0 ? <ul className="divide-y divide-slate-100">
+                  {rosterByTeam.get(membership.team_id)?.map((player) => <li className="flex items-center justify-between gap-4 px-4 py-3" key={player.player_id}>
+                    <div><p className="font-semibold text-ink">{player.full_name}</p><p className="text-xs text-slate-500">V tíme od {date.format(new Date(player.joined_at))}</p></div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${player.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{player.status === "active" ? "Aktívny" : "Neaktívny"}</span>
+                  </li>)}
+                </ul> : <p className="px-4 py-5 text-sm text-slate-500">V tomto tíme zatiaľ nie je žiadny hráč.</p>}
+              </div>
               <form action={inviteParentToTeam} className="mt-3 flex flex-col gap-3 sm:flex-row">
                 <input name="teamId" type="hidden" value={membership.team_id} />
                 <input className="field flex-1" name="email" type="email" required placeholder="E-mail rodiča hráča" />
