@@ -131,9 +131,10 @@ export async function reviewTeamClaim(formData: FormData) {
   if (!uuidPattern.test(claimId) || !["approved", "rejected"].includes(decision)) throw new Error("Neplatná žiadosť.");
   const { supabase } = await requireAdmin();
   const { error } = await supabase.rpc("review_team_claim", { p_claim_id: claimId, p_decision: decision });
-  if (error) throw new Error("Žiadosť sa nepodarilo spracovať.");
+  if (error) redirect("/admin/timy?stav=chyba");
   revalidatePath("/admin/timy");
   revalidatePath("/ucet");
+  redirect(`/admin/timy?stav=${decision}`);
 }
 
 export async function reviewTeamCreationRequest(formData: FormData) {
@@ -142,9 +143,10 @@ export async function reviewTeamCreationRequest(formData: FormData) {
   if (!uuidPattern.test(requestId) || !["approved", "rejected"].includes(decision)) throw new Error("Neplatná žiadosť.");
   const { supabase } = await requireAdmin();
   const { error } = await supabase.rpc("review_team_creation_request", { p_request_id: requestId, p_decision: decision });
-  if (error) throw new Error("Návrh tímu sa nepodarilo spracovať.");
+  if (error) redirect("/admin/timy?stav=chyba");
   revalidatePath("/admin/timy");
   revalidatePath("/ucet");
+  redirect(`/admin/timy?stav=${decision}`);
 }
 
 export async function setAdminRole(formData: FormData) {
