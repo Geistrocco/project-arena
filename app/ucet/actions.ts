@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { sendGuardianInvitationEmail } from "@/lib/email/guardian-invitation";
+import { sendTeamPlayerInvitationEmail } from "@/lib/email/team-player-invitation";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -92,6 +93,33 @@ export async function respondToGuardianInvitation(formData: FormData) {
   });
   if (error) throw new Error("Pozvanie sa nepodarilo spracovať alebo už nie je platné.");
   revalidatePath("/ucet");
+}
+
+export async function inviteParentToTeam(formData: FormData) {
+  const teamId = String(formData.get("teamId") ?? "");
+  const invitedEmail = String(formData.get("email") ?? "").trim().toLowerCase().slice(0, 254);
+  if (!/^[0-9a-f-]{36}$/i.test(teamId) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(invitedEmail)) throw new Error("Skontrolujte tím a e-mail rodiča.");
+  const { supabase } = await requireUser();
+  const { data: team } = await supabase.from("club_teams").select("name").eq("id", teamId).maybeSingle();
+  if (!team) throw new Error("Tím sa nenašiel.");
+  const { data: invitationId, error } = await supabase.rpc("invite_parent_to_team", { p_team_id: teamId, p_invited_email: invitedEmail });
+  if (error?.code === "23505") throw new Error("Tomuto rodičovi už čaká pozvanie do tímu.");
+  if (error || !invitationId) throw new Error("Pozvanie sa nepodarilo vytvoriť.");
+  await sendTeamPlayerInvitationEmail({ to: invitedEmail, teamName: team.name, invitationId });
+  revalidatePath("/ucet");
+  redirect("/ucet?stav=timove-pozvanie-odoslane#moje-timy");
+}
+
+export async function respondToTeamPlayerInvitation(formData: FormData) {
+  const invitationId = String(formData.get("invitationId") ?? "");
+  const playerId = String(formData.get("playerId") ?? "");
+  const accept = String(formData.get("decision") ?? "") === "accept";
+  if (!/^[0-9a-f-]{36}$/i.test(invitationId) || (accept && !/^[0-9a-f-]{36}$/i.test(playerId))) throw new Error("Vyberte platného hráča.");
+  const { supabase } = await requireUser();
+  const { error } = await supabase.rpc("respond_to_team_player_invitation", { p_invitation_id: invitationId, p_player_id: accept ? playerId : null, p_accept: accept });
+  if (error) throw new Error("Pozvanie sa nepodarilo spracovať.");
+  revalidatePath("/ucet");
+  redirect(`/ucet?stav=${accept ? "hrac-pridany-do-timu" : "timove-pozvanie-odmietnute"}#timove-pozvania`);
 }
 
 export async function setMarketingConsent(formData: FormData) {
