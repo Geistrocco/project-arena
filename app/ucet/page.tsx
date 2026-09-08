@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createPlayerProfile, inviteGuardian, requestNewTeam, requestTeamAccess, respondToGuardianInvitation, setMarketingConsent } from "@/app/ucet/actions";
 
-export default async function AccountPage() {
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ stav?: string }> }) {
+  const params = await searchParams;
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) redirect("/prihlasenie");
@@ -43,6 +44,10 @@ export default async function AccountPage() {
         <div className="mt-8 border-t border-slate-200 pt-6" id="rodina">
           <h2 className="text-lg font-extrabold text-ink">Rodina a hráči</h2>
           <p className="mt-2 text-sm text-slate-600">Hráč nemá automaticky vlastný prihlasovací účet. Jeho profil môže bezpečne spravovať viac rodičov alebo opatrovníkov.</p>
+
+          {params.stav === "pozvanie-odoslane" && <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800" role="status">
+            Pozvanie bolo úspešne odoslané e-mailom.
+          </div>}
 
           {incomingInvitations.length > 0 && <div className="mt-5 space-y-3">
             <h3 className="font-bold text-ink">Pozvania pre vás</h3>
