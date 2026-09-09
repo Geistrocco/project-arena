@@ -26,12 +26,15 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
   const { data: role } = await supabase.from("user_roles").select("role").eq("user_id", adminId).maybeSingle();
   if (!role || !["owner", "admin"].includes(role.role)) redirect("/ucet");
 
-  const [{ data: profiles }, { data: controls }, { data: consents }, { data: userRoles }] = await Promise.all([
+  const [{ data: profiles }, { data: controls }, { data: consents }, { data: userRoles }, { count: pendingClaims }, { count: pendingTeamRequests }] = await Promise.all([
     supabase.from("profiles").select("id, full_name, email, created_at").order("created_at", { ascending: false }),
     supabase.from("account_controls").select("user_id, status, suspension_reason, discount_percent, discount_note, discount_expires_at"),
     supabase.from("marketing_consent_events").select("user_id, granted, recorded_at").order("recorded_at", { ascending: false }),
     supabase.from("user_roles").select("user_id, role"),
+    supabase.from("team_claim_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("team_creation_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
   ]);
+  const pendingTeams = (pendingClaims ?? 0) + (pendingTeamRequests ?? 0);
 
   const controlByUser = new Map((controls as Control[] | null)?.map((item) => [item.user_id, item]));
   const latestConsent = new Map<string, Consent>();
@@ -58,7 +61,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
     <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-16">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="eyebrow">Administrácia</p><h1 className="mt-2 text-3xl font-extrabold text-ink sm:text-4xl">Používatelia</h1><p className="mt-2 text-slate-600">Registrácie, prístupy, marketingové súhlasy a zľavy.</p></div>
-        <div className="flex gap-3"><Link className="btn-secondary" href="/admin/timy">Žiadosti o tímy</Link><Link className="btn-secondary" href="/ucet">Späť na účet</Link></div>
+        <div className="flex gap-3"><Link className={pendingTeams > 0 ? "inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 font-bold text-amber-900 shadow-sm" : "btn-secondary"} href="/admin/timy">Žiadosti o tímy {pendingTeams > 0 && <span className="rounded-full bg-amber-600 px-2 py-0.5 text-xs text-white">{pendingTeams}</span>}</Link><Link className="btn-secondary" href="/ucet">Späť na účet</Link></div>
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
