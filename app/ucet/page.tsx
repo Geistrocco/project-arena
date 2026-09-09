@@ -13,7 +13,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const email = typeof data.claims.email === "string" ? data.claims.email : "";
   const metadata = data.claims.user_metadata as { full_name?: string } | undefined;
   const userId = typeof data.claims.sub === "string" ? data.claims.sub : "";
-  const [{ data: role }, { data: consentEvents }, { data: teams }, { data: claims }, { data: memberships }, { data: teamRequests }, { data: players }, { data: guardianLinks }, { data: guardianInvitations }, { data: teamPlayerInvitations }, { data: managedRoster }] = await Promise.all([
+  const [{ data: role }, { data: consentEvents }, { data: teams }, { data: claims }, { data: memberships }, { data: teamRequests }, { data: players }, { data: guardianLinks }, { data: guardianInvitations }, { data: teamPlayerInvitations }, { data: managedRoster }, { data: playerTeamLinks }] = await Promise.all([
     supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
     supabase.from("marketing_consent_events").select("granted").eq("user_id", userId).order("recorded_at", { ascending: false }).limit(1),
     supabase.from("club_teams").select("id, name, category, season").eq("status", "active").order("name"),
@@ -25,6 +25,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     supabase.from("guardian_invitations").select("id, player_id, player_name, invited_email, relationship, invited_by, status, expires_at").order("created_at", { ascending: false }),
     supabase.from("team_player_invitations").select("id, team_id, invited_email, invited_by, status, expires_at").order("created_at", { ascending: false }),
     supabase.rpc("get_managed_team_roster"),
+    supabase.from("team_players").select("player_id, team_id, status").eq("status", "active"),
   ]);
   const marketingConsent = consentEvents?.[0]?.granted === true;
   const playerById = new Map(players?.map((player) => [player.id, player]));
@@ -33,6 +34,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const incomingInvitations = guardianInvitations?.filter((invitation) => invitation.status === "pending" && new Date(invitation.expires_at) > new Date() && invitation.invited_email.toLowerCase() === email.toLowerCase()) ?? [];
   const sentInvitations = guardianInvitations?.filter((invitation) => invitation.invited_by === userId) ?? [];
   const teamById = new Map(teams?.map((team) => [team.id, team]));
+  const teamsByPlayer = new Map<string, string[]>();
+  playerTeamLinks?.forEach((link) => {
+    const team = teamById.get(link.team_id);
+    if (team) teamsByPlayer.set(link.player_id, [...(teamsByPlayer.get(link.player_id) ?? []), `${team.name} · ${team.season}`]);
+  });
   const incomingTeamInvitations = teamPlayerInvitations?.filter((invitation) => invitation.status === "pending" && invitation.invited_email === email.toLowerCase() && new Date(invitation.expires_at) > new Date()) ?? [];
   const rosterByTeam = new Map<string, TeamRosterPlayer[]>();
   (managedRoster as TeamRosterPlayer[] | null)?.forEach((player) => rosterByTeam.set(player.team_id, [...(rosterByTeam.get(player.team_id) ?? []), player]));
@@ -88,7 +94,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <div className="mt-5 space-y-4">
             {players?.map((player) => <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5" key={player.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h3 className="font-extrabold text-ink">{player.full_name}</h3><p className="mt-1 text-sm text-slate-600">{player.birth_date ? `Narodenie: ${date.format(new Date(`${player.birth_date}T12:00:00Z`))} · ` : ""}{guardianCount.get(player.id) ?? 1} {(guardianCount.get(player.id) ?? 1) === 1 ? "správca" : "správcovia"}</p></div>
+                <div><h3 className="font-extrabold text-ink">{player.full_name}</h3><p className="mt-1 text-sm text-slate-600">{player.birth_date ? `Narodenie: ${date.format(new Date(`${player.birth_date}T12:00:00Z`))} · ` : ""}{guardianCount.get(player.id) ?? 1} {(guardianCount.get(player.id) ?? 1) === 1 ? "správca" : "správcovia"}</p>{(teamsByPlayer.get(player.id)?.length ?? 0) > 0 && <div className="mt-3 flex flex-wrap gap-2">{teamsByPlayer.get(player.id)?.map((team) => <span className="rounded-full bg-arena-100 px-3 py-1 text-xs font-bold text-arena-800" key={team}>Tím: {team}</span>)}</div>}</div>
                 {guardianLinks?.some((link) => link.player_id === player.id && link.guardian_user_id === userId && link.is_primary) && <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-arena-700">Hlavný rodič</span>}
               </div>
               <details className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
