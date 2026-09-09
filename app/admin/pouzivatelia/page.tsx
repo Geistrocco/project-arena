@@ -61,7 +61,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
     <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-16">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
         <div><p className="eyebrow">Administrácia</p><h1 className="mt-2 text-3xl font-extrabold text-ink sm:text-4xl">Používatelia</h1><p className="mt-2 text-slate-600">Registrácie, prístupy, marketingové súhlasy a zľavy.</p></div>
-        <div className="flex gap-3"><Link className={pendingTeams > 0 ? "inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 font-bold text-amber-900 shadow-sm" : "btn-secondary"} href="/admin/timy">Žiadosti o tímy {pendingTeams > 0 && <span className="rounded-full bg-amber-600 px-2 py-0.5 text-xs text-white">{pendingTeams}</span>}</Link><Link className="btn-secondary" href="/ucet">Späť na účet</Link></div>
+        <div className="flex flex-wrap gap-3"><Link className="btn-secondary" href="/admin/timy/prehlad">Registrované tímy</Link><Link className={pendingTeams > 0 ? "inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-100 px-4 py-3 font-bold text-amber-900 shadow-sm" : "btn-secondary"} href="/admin/timy">Žiadosti o tímy {pendingTeams > 0 && <span className="rounded-full bg-amber-600 px-2 py-0.5 text-xs text-white">{pendingTeams}</span>}</Link><Link className="btn-secondary" href="/ucet">Späť na účet</Link></div>
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createPlayerProfile, inviteGuardian, inviteParentToTeam, requestNewTeam, requestTeamAccess, respondToGuardianInvitation, respondToTeamPlayerInvitation, setMarketingConsent } from "@/app/ucet/actions";
 
 type TeamRosterPlayer = { team_id: string; player_id: string; full_name: string; joined_at: string; status: "active" | "inactive" };
+type PlayerTeam = { id: string; label: string };
 
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ stav?: string }> }) {
   const params = await searchParams;
@@ -34,10 +35,10 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const incomingInvitations = guardianInvitations?.filter((invitation) => invitation.status === "pending" && new Date(invitation.expires_at) > new Date() && invitation.invited_email.toLowerCase() === email.toLowerCase()) ?? [];
   const sentInvitations = guardianInvitations?.filter((invitation) => invitation.invited_by === userId) ?? [];
   const teamById = new Map(teams?.map((team) => [team.id, team]));
-  const teamsByPlayer = new Map<string, string[]>();
+  const teamsByPlayer = new Map<string, PlayerTeam[]>();
   playerTeamLinks?.forEach((link) => {
     const team = teamById.get(link.team_id);
-    if (team) teamsByPlayer.set(link.player_id, [...(teamsByPlayer.get(link.player_id) ?? []), `${team.name} · ${team.season}`]);
+    if (team) teamsByPlayer.set(link.player_id, [...(teamsByPlayer.get(link.player_id) ?? []), { id: team.id, label: `${team.name} · ${team.season}` }]);
   });
   const incomingTeamInvitations = teamPlayerInvitations?.filter((invitation) => invitation.status === "pending" && invitation.invited_email === email.toLowerCase() && new Date(invitation.expires_at) > new Date()) ?? [];
   const rosterByTeam = new Map<string, TeamRosterPlayer[]>();
@@ -94,7 +95,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <div className="mt-5 space-y-4">
             {players?.map((player) => <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5" key={player.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h3 className="font-extrabold text-ink">{player.full_name}</h3><p className="mt-1 text-sm text-slate-600">{player.birth_date ? `Narodenie: ${date.format(new Date(`${player.birth_date}T12:00:00Z`))} · ` : ""}{guardianCount.get(player.id) ?? 1} {(guardianCount.get(player.id) ?? 1) === 1 ? "správca" : "správcovia"}</p>{(teamsByPlayer.get(player.id)?.length ?? 0) > 0 && <div className="mt-3 flex flex-wrap gap-2">{teamsByPlayer.get(player.id)?.map((team) => <span className="rounded-full bg-arena-100 px-3 py-1 text-xs font-bold text-arena-800" key={team}>Tím: {team}</span>)}</div>}</div>
+                <div><h3 className="font-extrabold text-ink">{player.full_name}</h3><p className="mt-1 text-sm text-slate-600">{player.birth_date ? `Narodenie: ${date.format(new Date(`${player.birth_date}T12:00:00Z`))} · ` : ""}{guardianCount.get(player.id) ?? 1} {(guardianCount.get(player.id) ?? 1) === 1 ? "správca" : "správcovia"}</p>{(teamsByPlayer.get(player.id)?.length ?? 0) > 0 && <div className="mt-3 flex flex-wrap gap-2">{teamsByPlayer.get(player.id)?.map((team) => <Link className="rounded-full bg-arena-100 px-3 py-1 text-xs font-bold text-arena-800 transition hover:bg-arena-200" href={`/timy/${team.id}`} key={team.id}>Tím: {team.label} →</Link>)}</div>}</div>
                 {guardianLinks?.some((link) => link.player_id === player.id && link.guardian_user_id === userId && link.is_primary) && <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-arena-700">Hlavný rodič</span>}
               </div>
               <details className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
