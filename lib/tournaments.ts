@@ -2,7 +2,7 @@ import { tournaments as demoTournaments } from "@/data/tournaments";
 import { createClient } from "@/lib/supabase/server";
 import type { Tournament } from "@/types/tournament";
 
-type TournamentRow = { slug: string; name: string; sport: string; category: string; event_date: string; place: string; country: "Slovensko" | "Česko"; registered_count: number; capacity: number; fee: number | string; organizer_name: string; playing_fields: number; match_duration: number; tournament_invited_teams?: { team_name: string }[] };
+type TournamentRow = { slug: string; name: string; sport: string; category: string; event_date: string; place: string; country: "Slovensko" | "Česko"; registered_count: number; capacity: number; fee: number | string; organizer_name: string; playing_fields: number; match_duration: number; start_time?: string; turnover_minutes?: number; schedule_slot_minutes?: number; has_lunch_break?: boolean; lunch_break_start?: string | null; lunch_break_duration?: number | null; tournament_invited_teams?: { team_name: string }[] };
 export type TournamentRepeatSource = {
   slug: string;
   name: string;
@@ -12,6 +12,10 @@ export type TournamentRepeatSource = {
   capacity: number;
   playingFields: number;
   matchDuration: number;
+  startTime: string;
+  lunchBreak: boolean;
+  lunchStart: string;
+  lunchDuration: number;
   fee: number;
   tournamentType: "Verejný" | "Pozvánkový" | "Kombinovaný";
   teamVisibility: "Zobrazovať všetkým" | "Iba prijatým tímom" | "Nezobrazovať";
@@ -27,13 +31,13 @@ function mapTournament(row: TournamentRow): Tournament {
     registered, capacity: Number(row.capacity), participantLabel: "tímov", fee: Number(row.fee),
     status: registered >= Number(row.capacity) ? "Plná kapacita" : "Otvorená", organizer: row.organizer_name,
     description: `Turnaj ${row.name} v kategórii ${row.category}. Organizátor postupne doplní ďalšie informácie.`,
-    rules: [`Počet hracích plôch: ${row.playing_fields}`, `Dĺžka zápasu: ${row.match_duration} minút`],
+    rules: [`Počet hracích plôch: ${row.playing_fields}`, `Dĺžka zápasu: ${row.match_duration} minút`, ...(row.start_time ? [`Začiatok zápasov: ${row.start_time.slice(0, 5)}`, `Časový blok: ${row.schedule_slot_minutes} minút (prestávka ${row.turnover_minutes} minút)`] : []), ...(row.has_lunch_break ? [`Obedná prestávka: ${row.lunch_break_start?.slice(0, 5)}, ${row.lunch_break_duration} minút`] : [])],
     participants: row.tournament_invited_teams?.map((team) => team.team_name) ?? [] };
 }
 
 export async function getPublicTournaments() {
   const supabase = await createClient();
-  const { data } = await supabase.from("tournaments").select("slug,name,sport,category,event_date,place,country,registered_count,capacity,fee,organizer_name,playing_fields,match_duration").order("event_date");
+  const { data } = await supabase.from("tournaments").select("slug,name,sport,category,event_date,place,country,registered_count,capacity,fee,organizer_name,playing_fields,match_duration,start_time,turnover_minutes,schedule_slot_minutes,has_lunch_break,lunch_break_start,lunch_break_duration").order("event_date");
   const saved = ((data as TournamentRow[] | null) ?? []).map(mapTournament);
   return [...saved, ...demoTournaments.filter((demo) => !saved.some((item) => item.slug === demo.slug))];
 }
@@ -41,7 +45,7 @@ export async function getPublicTournaments() {
 export async function getTournamentBySlug(slug: string) {
   const demo = demoTournaments.find((item) => item.slug === slug);
   const supabase = await createClient();
-  const { data } = await supabase.from("tournaments").select("slug,name,sport,category,event_date,place,country,registered_count,capacity,fee,organizer_name,playing_fields,match_duration,tournament_invited_teams(team_name)").eq("slug", slug).maybeSingle();
+  const { data } = await supabase.from("tournaments").select("slug,name,sport,category,event_date,place,country,registered_count,capacity,fee,organizer_name,playing_fields,match_duration,start_time,turnover_minutes,schedule_slot_minutes,has_lunch_break,lunch_break_start,lunch_break_duration,tournament_invited_teams(team_name)").eq("slug", slug).maybeSingle();
   return data ? mapTournament(data as TournamentRow) : demo ?? null;
 }
 
@@ -53,7 +57,7 @@ export async function getTournamentRepeatSource(slug: string): Promise<Tournamen
 
   const { data } = await supabase
     .from("tournaments")
-    .select("slug,organizer_id,name,sport,category,place,capacity,playing_fields,match_duration,fee,tournament_type,team_visibility,tournament_invited_teams(club_id,team_name)")
+    .select("slug,organizer_id,name,sport,category,place,capacity,playing_fields,match_duration,start_time,has_lunch_break,lunch_break_start,lunch_break_duration,fee,tournament_type,team_visibility,tournament_invited_teams(club_id,team_name)")
     .eq("slug", slug)
     .eq("organizer_id", userId)
     .maybeSingle();
@@ -71,6 +75,10 @@ export async function getTournamentRepeatSource(slug: string): Promise<Tournamen
     capacity: Number(data.capacity),
     playingFields: Number(data.playing_fields),
     matchDuration: Number(data.match_duration),
+    startTime: String(data.start_time ?? "09:00").slice(0, 5),
+    lunchBreak: Boolean(data.has_lunch_break),
+    lunchStart: String(data.lunch_break_start ?? "12:00").slice(0, 5),
+    lunchDuration: Number(data.lunch_break_duration ?? 45),
     fee: Number(data.fee),
     tournamentType: tournamentTypes[data.tournament_type as keyof typeof tournamentTypes],
     teamVisibility: teamVisibilities[data.team_visibility as keyof typeof teamVisibilities],
