@@ -1,4 +1,5 @@
 export const MINIMUM_TURNOVER_MINUTES = 3;
+export type GameSystem = "groups_playoff" | "round_robin" | "groups_placement";
 
 export type ScheduleSettings = {
   teamCount: number;
@@ -8,6 +9,9 @@ export type ScheduleSettings = {
   lunchBreak: boolean;
   lunchStart?: string;
   lunchDuration?: number;
+  gameSystem?: GameSystem;
+  qualifiersPerGroup?: number;
+  thirdPlaceMatch?: boolean;
 };
 
 type Match = { home: number; away: number };
@@ -17,6 +21,8 @@ export type ScheduleSummary = {
   turnoverMinutes: number;
   groupSizes: number[];
   matchCount: number;
+  groupMatchCount: number;
+  finalStageMatchCount: number;
   playingSlotCount: number;
   restSlotCount: number;
   finishTime: string;
@@ -66,9 +72,10 @@ export function createScheduleSummary(settings: ScheduleSettings): ScheduleSumma
   const { teamCount, fieldCount, matchMinutes } = settings;
   if (!Number.isInteger(teamCount) || teamCount < 2 || !Number.isInteger(fieldCount) || fieldCount < 1 || !Number.isInteger(matchMinutes) || matchMinutes < 1) return null;
 
-  const groupSizes = suggestedGroupSizes(teamCount);
+  const gameSystem = settings.gameSystem ?? "groups_playoff";
+  const groupSizes = gameSystem === "round_robin" ? [teamCount] : suggestedGroupSizes(teamCount);
   const pending = roundRobinMatches(groupSizes);
-  const matchCount = pending.length;
+  const groupMatchCount = pending.length;
   const lastSlot = new Map<number, number>();
   let slotIndex = 0;
   let restSlotCount = 0;
@@ -88,6 +95,26 @@ export function createScheduleSummary(settings: ScheduleSettings): ScheduleSumma
     slotIndex += 1;
   }
 
+  let finalStageMatchCount = 0;
+  if (gameSystem === "groups_playoff") {
+    const qualifiers = Math.min(teamCount, groupSizes.length * Math.max(1, settings.qualifiersPerGroup ?? 2));
+    finalStageMatchCount = Math.max(0, qualifiers - 1) + (settings.thirdPlaceMatch && qualifiers >= 4 ? 1 : 0);
+    let roundTeams = qualifiers;
+    while (roundTeams > 1) {
+      const roundMatches = Math.floor(roundTeams / 2);
+      slotIndex += 1 + Math.max(1, Math.ceil(roundMatches / fieldCount));
+      restSlotCount += 1;
+      roundTeams = Math.ceil(roundTeams / 2);
+    }
+  } else if (gameSystem === "groups_placement") {
+    finalStageMatchCount = Math.floor(teamCount / 2);
+    if (finalStageMatchCount > 0) {
+      slotIndex += 1 + Math.ceil(finalStageMatchCount / fieldCount);
+      restSlotCount += 1;
+    }
+  }
+  const matchCount = groupMatchCount + finalStageMatchCount;
+
   const slotMinutes = recommendedSlotMinutes(matchMinutes);
   let current = parseTime(settings.startTime);
   let lastMatchStart = current;
@@ -104,6 +131,8 @@ export function createScheduleSummary(settings: ScheduleSettings): ScheduleSumma
     turnoverMinutes: slotMinutes - matchMinutes,
     groupSizes,
     matchCount,
+    groupMatchCount,
+    finalStageMatchCount,
     playingSlotCount: slotIndex,
     restSlotCount,
     finishTime: formatTime(lastMatchStart + matchMinutes),
