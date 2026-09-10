@@ -3,8 +3,8 @@ import { useMemo, useState } from "react";
 import type { Club } from "@/types/club";
 import { CloseIcon, SearchIcon } from "@/components/icons";
 
-export function ClubPicker({ clubs, selected, onChange }: { clubs: Club[]; selected: string[]; onChange: (ids: string[]) => void }) {
-  const [query, setQuery] = useState(""); const [custom, setCustom] = useState(""); const [customTeams, setCustomTeams] = useState<string[]>([]);
+export function ClubPicker({ clubs, selected, onChange, initialCustomTeams = [] }: { clubs: Club[]; selected: string[]; onChange: (ids: string[]) => void; initialCustomTeams?: string[] }) {
+  const [query, setQuery] = useState(""); const [custom, setCustom] = useState(""); const [customTeams, setCustomTeams] = useState<string[]>(initialCustomTeams);
   const matches = useMemo(() => { const q = query.trim().toLocaleLowerCase("sk"); return clubs.filter((club) => (club.name.toLocaleLowerCase("sk").includes(q) || club.city.toLocaleLowerCase("sk").includes(q)) && !selected.includes(club.id)).slice(0, 7); }, [clubs, query, selected]);
   const selectedClubs = selected.map((id) => clubs.find((club) => club.id === id)).filter((club): club is Club => Boolean(club));
   const addCustom = () => { const name = custom.trim(); if (name && !customTeams.includes(name)) { setCustomTeams([...customTeams, name]); setCustom(""); } };
