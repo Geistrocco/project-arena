@@ -26,6 +26,7 @@ export type TournamentRepeatSource = {
   clubIds: string[];
   customTeams: string[];
 };
+export type TournamentEditSource = TournamentRepeatSource & { eventDate: string; hasResults: boolean };
 const date = new Intl.DateTimeFormat("sk-SK", { dateStyle: "long", timeZone: "Europe/Bratislava" });
 
 function mapTournament(row: TournamentRow): Tournament {
@@ -95,3 +96,22 @@ export async function getTournamentRepeatSource(slug: string): Promise<Tournamen
 }
 
 function gameSystemLabel(system?: GameSystem) { return ({ groups_playoff: "Skupiny + play-off", round_robin: "Každý s každým", groups_placement: "Skupiny + zápasy o umiestnenie" } as const)[system ?? "groups_playoff"]; }
+
+export async function getTournamentEditSource(slug: string): Promise<TournamentEditSource | null> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  const userId = auth?.claims?.sub;
+  if (!userId) return null;
+  const { data } = await supabase.from("tournaments").select("id,slug,organizer_id,name,sport,category,event_date,place,capacity,playing_fields,match_duration,start_time,has_lunch_break,lunch_break_start,lunch_break_duration,game_system,qualifiers_per_group,third_place_match,fee,tournament_type,team_visibility,tournament_invited_teams(club_id,team_name)").eq("slug", slug).eq("organizer_id", userId).maybeSingle();
+  if (!data) return null;
+  const { count } = await supabase.from("tournament_matches").select("id", { count: "exact", head: true }).eq("tournament_id", data.id).eq("status", "finished");
+  const teams = (data.tournament_invited_teams ?? []) as { club_id: string | null; team_name: string }[];
+  const tournamentTypes = { public: "Verejný", invitation: "Pozvánkový", combined: "Kombinovaný" } as const;
+  const teamVisibilities = { all: "Zobrazovať všetkým", accepted: "Iba prijatým tímom", hidden: "Nezobrazovať" } as const;
+  return { slug: data.slug, name: data.name, sport: data.sport, category: data.category, eventDate: data.event_date, place: data.place,
+    capacity: Number(data.capacity), playingFields: Number(data.playing_fields), matchDuration: Number(data.match_duration), startTime: String(data.start_time ?? "09:00").slice(0, 5),
+    lunchBreak: Boolean(data.has_lunch_break), lunchStart: String(data.lunch_break_start ?? "12:00").slice(0, 5), lunchDuration: Number(data.lunch_break_duration ?? 45),
+    gameSystem: (data.game_system ?? "groups_playoff") as GameSystem, qualifiersPerGroup: Number(data.qualifiers_per_group ?? 2), thirdPlaceMatch: Boolean(data.third_place_match), fee: Number(data.fee),
+    tournamentType: tournamentTypes[data.tournament_type as keyof typeof tournamentTypes], teamVisibility: teamVisibilities[data.team_visibility as keyof typeof teamVisibilities],
+    clubIds: teams.flatMap((team) => team.club_id ? [team.club_id] : []), customTeams: teams.flatMap((team) => team.club_id ? [] : [team.team_name]), hasResults: (count ?? 0) > 0 };
+}
