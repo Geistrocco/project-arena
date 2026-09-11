@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { clubsById } from "@/data/clubs";
+import { createTournamentPlan } from "@/lib/tournament-plan";
 
 const types: Record<string, string> = { "Verejný": "public", "Pozvánkový": "invitation", "Kombinovaný": "combined" };
 const visibilities: Record<string, string> = { "Zobrazovať všetkým": "all", "Iba prijatým tímom": "accepted", "Nezobrazovať": "hidden" };
@@ -30,13 +32,17 @@ export async function createTournament(formData: FormData) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getClaims();
   if (!auth?.claims?.sub) redirect("/prihlasenie?dovod=turnaj");
-  const { data: slug, error } = await supabase.rpc("create_tournament_with_game_system", {
+  const selectedNames = clubIds.map((id) => clubsById.get(id)?.name).filter((item): item is string => Boolean(item));
+  const teamNames = [...new Set([...selectedNames, ...customTeams])];
+  const plan = createTournamentPlan({ teamNames, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem: gameSystem as "groups_playoff" | "round_robin" | "groups_placement" });
+  const { data: slug, error } = await supabase.rpc("create_tournament_with_plan", {
     p_name: name, p_sport: sport, p_category: category, p_event_date: date, p_place: place,
     p_capacity: capacity, p_playing_fields: fields, p_match_duration: duration, p_fee: fee,
     p_tournament_type: tournamentType, p_team_visibility: visibility,
     p_start_time: startTime, p_turnover_minutes: 3, p_schedule_slot_minutes: Math.ceil((duration + 3) / 5) * 5,
     p_has_lunch_break: lunchBreak, p_lunch_break_start: lunchStart, p_lunch_break_duration: lunchDuration,
     p_game_system: gameSystem, p_qualifiers_per_group: qualifiers, p_third_place_match: thirdPlace,
+    p_plan: plan,
     p_club_ids: clubIds, p_custom_teams: customTeams,
   });
   if (error || !slug) throw new Error("Turnaj sa nepodarilo uložiť.");
