@@ -1,29 +1,33 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ClubPicker } from "@/components/club-picker";
 import type { Club } from "@/types/club";
 import { createTournament } from "@/app/vytvorit-turnaj/actions";
-import type { TournamentRepeatSource } from "@/lib/tournaments";
+import { updateTournament } from "@/app/turnaje/[slug]/upravit/actions";
+import type { TournamentEditSource, TournamentRepeatSource } from "@/lib/tournaments";
 import { createScheduleSummary, type GameSystem } from "@/lib/tournament-schedule";
 
-export function CreateTournamentForm({ clubs, repeatSource }: { clubs: Club[]; repeatSource?: TournamentRepeatSource | null }) {
-  const [selected, setSelected] = useState<string[]>(repeatSource?.clubIds ?? []);
-  const [teams, setTeams] = useState(repeatSource?.capacity ?? 8);
-  const [fields, setFields] = useState(repeatSource?.playingFields ?? 2);
-  const [duration, setDuration] = useState(repeatSource?.matchDuration ?? 12);
-  const [startTime, setStartTime] = useState(repeatSource?.startTime ?? "09:00");
-  const [lunchBreak, setLunchBreak] = useState(repeatSource?.lunchBreak ?? false);
-  const [lunchStart, setLunchStart] = useState(repeatSource?.lunchStart ?? "12:00");
-  const [lunchDuration, setLunchDuration] = useState(repeatSource?.lunchDuration ?? 45);
-  const [gameSystem, setGameSystem] = useState<GameSystem>(repeatSource?.gameSystem ?? "groups_playoff");
-  const [qualifiers, setQualifiers] = useState(repeatSource?.qualifiersPerGroup ?? 2);
-  const [thirdPlace, setThirdPlace] = useState(repeatSource?.thirdPlaceMatch ?? true);
+export function CreateTournamentForm({ clubs, repeatSource, editSource }: { clubs: Club[]; repeatSource?: TournamentRepeatSource | null; editSource?: TournamentEditSource | null }) {
+  const source = editSource ?? repeatSource;
+  const confirmReset = useRef<HTMLInputElement>(null);
+  const [selected, setSelected] = useState<string[]>(source?.clubIds ?? []);
+  const [teams, setTeams] = useState(source?.capacity ?? 8);
+  const [fields, setFields] = useState(source?.playingFields ?? 2);
+  const [duration, setDuration] = useState(source?.matchDuration ?? 12);
+  const [startTime, setStartTime] = useState(source?.startTime ?? "09:00");
+  const [lunchBreak, setLunchBreak] = useState(source?.lunchBreak ?? false);
+  const [lunchStart, setLunchStart] = useState(source?.lunchStart ?? "12:00");
+  const [lunchDuration, setLunchDuration] = useState(source?.lunchDuration ?? 45);
+  const [gameSystem, setGameSystem] = useState<GameSystem>(source?.gameSystem ?? "groups_playoff");
+  const [qualifiers, setQualifiers] = useState(source?.qualifiersPerGroup ?? 2);
+  const [thirdPlace, setThirdPlace] = useState(source?.thirdPlaceMatch ?? true);
   const schedule = createScheduleSummary({ teamCount: teams, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem, qualifiersPerGroup: qualifiers, thirdPlaceMatch: thirdPlace });
-  return <form action={createTournament} className="rounded-3xl border bg-white p-6 shadow-card sm:p-10">
+  return <form action={editSource ? updateTournament : createTournament} onSubmit={(event) => { if (editSource?.hasResults && !window.confirm("Ak ste zmenili formát turnaja, vytvorí sa nový rozpis a doterajšie výsledky sa vymažú. Chcete pokračovať?")) event.preventDefault(); else if (confirmReset.current) confirmReset.current.value = "yes"; }} className="rounded-3xl border bg-white p-6 shadow-card sm:p-10">
+    {editSource && <><input type="hidden" name="slug" value={editSource.slug}/><input ref={confirmReset} type="hidden" name="confirmReset" value="no"/><div className="mb-8 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4"><p className="font-bold text-amber-900">Upravujete existujúci turnaj</p><p className="mt-1 text-sm text-amber-800">Zmena počtu tímov, herného systému, ihrísk alebo časov vytvorí nový rozpis. Bežné údaje výsledky neovplyvnia.</p></div></>}
     {repeatSource && <div className="mb-8 rounded-2xl border border-arena-200 bg-arena-50 px-5 py-4"><p className="font-bold text-arena-800">Vytvárate nový turnaj podľa „{repeatSource.name}“</p><p className="mt-1 text-sm text-arena-700">Vyberte nový dátum a skontrolujte predvyplnené údaje. Prihlášky, nominácie ani výsledky sa nekopírujú.</p></div>}
-    <Section n="01" title="Základné informácie"><div className="sm:col-span-2"><Field label="Názov turnaja" name="name" placeholder="Napr. Summer Cup 2027" defaultValue={repeatSource?.name}/></div><Select label="Šport" name="sport" options={["Futbal","Hokej","Florbal","Tenis","Basketbal"]} defaultValue={repeatSource?.sport}/><Field label="Veková kategória" name="category" placeholder="Napr. U11" defaultValue={repeatSource?.category}/><Field label="Nový dátum" name="date" type="date"/><Field label="Miesto" name="place" placeholder="Mesto a športový areál" defaultValue={repeatSource?.place}/></Section>
-    <Section n="02" title="Formát a čas"><Field label="Počet tímov" name="teams" type="number" min={2} defaultValue={teams} onNumberChange={setTeams}/><Field label="Počet ihrísk alebo plôch" name="fields" type="number" min={1} defaultValue={fields} onNumberChange={setFields}/><Field label="Dĺžka zápasu (min)" name="duration" type="number" min={1} defaultValue={duration} onNumberChange={setDuration}/><Field label="Začiatok prvého zápasu" name="startTime" type="time" defaultValue={startTime} onChange={setStartTime}/><label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-2xl border bg-slate-50 p-4"><input className="mt-1 accent-arena-600" type="checkbox" name="lunchBreak" checked={lunchBreak} onChange={(event) => setLunchBreak(event.target.checked)}/><span><b className="block text-sm">Zahrnúť obednú prestávku</b><span className="text-xs text-slate-500">Prestávku aplikácia vloží medzi celé zápasy.</span></span></label>{lunchBreak && <><Field label="Začiatok obednej prestávky" name="lunchStart" type="time" defaultValue={lunchStart} onChange={setLunchStart}/><Field label="Dĺžka obednej prestávky (min)" name="lunchDuration" type="number" min={15} defaultValue={lunchDuration} onNumberChange={setLunchDuration}/></>}<Field label="Štartovné (€)" name="fee" type="number" min={0} defaultValue={repeatSource?.fee}/><SchedulePreview schedule={schedule}/></Section>
-    <GameSystemSection gameSystem={gameSystem} setGameSystem={setGameSystem} qualifiers={qualifiers} setQualifiers={setQualifiers} thirdPlace={thirdPlace} setThirdPlace={setThirdPlace}/><ChoiceSection tournamentType={repeatSource?.tournamentType} teamVisibility={repeatSource?.teamVisibility}/><div className="mt-9 border-t pt-9"><ClubPicker clubs={clubs} selected={selected} onChange={setSelected} initialCustomTeams={repeatSource?.customTeams}/></div><div className="mt-10 flex justify-end border-t pt-8"><button className="btn-primary w-full justify-center sm:w-auto" type="submit">Uložiť a zverejniť turnaj</button></div>
+    <Section n="01" title="Základné informácie"><div className="sm:col-span-2"><Field label="Názov turnaja" name="name" placeholder="Napr. Summer Cup 2027" defaultValue={source?.name}/></div><Select label="Šport" name="sport" options={["Futbal","Hokej","Florbal","Tenis","Basketbal"]} defaultValue={source?.sport}/><Field label="Veková kategória" name="category" placeholder="Napr. U11" defaultValue={source?.category}/><Field label={editSource ? "Dátum" : "Nový dátum"} name="date" type="date" defaultValue={editSource?.eventDate}/><Field label="Miesto" name="place" placeholder="Mesto a športový areál" defaultValue={source?.place}/></Section>
+    <Section n="02" title="Formát a čas"><Field label="Počet tímov" name="teams" type="number" min={2} defaultValue={teams} onNumberChange={setTeams}/><Field label="Počet ihrísk alebo plôch" name="fields" type="number" min={1} defaultValue={fields} onNumberChange={setFields}/><Field label="Dĺžka zápasu (min)" name="duration" type="number" min={1} defaultValue={duration} onNumberChange={setDuration}/><Field label="Začiatok prvého zápasu" name="startTime" type="time" defaultValue={startTime} onChange={setStartTime}/><label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-2xl border bg-slate-50 p-4"><input className="mt-1 accent-arena-600" type="checkbox" name="lunchBreak" checked={lunchBreak} onChange={(event) => setLunchBreak(event.target.checked)}/><span><b className="block text-sm">Zahrnúť obednú prestávku</b><span className="text-xs text-slate-500">Prestávku aplikácia vloží medzi celé zápasy.</span></span></label>{lunchBreak && <><Field label="Začiatok obednej prestávky" name="lunchStart" type="time" defaultValue={lunchStart} onChange={setLunchStart}/><Field label="Dĺžka obednej prestávky (min)" name="lunchDuration" type="number" min={15} defaultValue={lunchDuration} onNumberChange={setLunchDuration}/></>}<Field label="Štartovné (€)" name="fee" type="number" min={0} defaultValue={source?.fee}/><SchedulePreview schedule={schedule}/></Section>
+    <GameSystemSection gameSystem={gameSystem} setGameSystem={setGameSystem} qualifiers={qualifiers} setQualifiers={setQualifiers} thirdPlace={thirdPlace} setThirdPlace={setThirdPlace}/><ChoiceSection tournamentType={source?.tournamentType} teamVisibility={source?.teamVisibility}/><div className="mt-9 border-t pt-9"><ClubPicker clubs={clubs} selected={selected} onChange={setSelected} initialCustomTeams={source?.customTeams}/></div><div className="mt-10 flex justify-end border-t pt-8"><button className="btn-primary w-full justify-center sm:w-auto" type="submit">{editSource ? "Uložiť zmeny" : "Uložiť a zverejniť turnaj"}</button></div>
   </form>;
 }
 function Section({ n,title,children }:{n:string;title:string;children:React.ReactNode}) { return <fieldset className="mb-9 grid gap-5 border-b pb-9 sm:grid-cols-2"><legend className="mb-6 flex gap-3 text-xl font-extrabold"><span className="text-xs text-arena-600">{n}</span>{title}</legend>{children}</fieldset>; }
