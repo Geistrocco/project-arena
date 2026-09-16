@@ -33,7 +33,7 @@ export default async function TeamNominationsPage({ params }: { params: Promise<
   }
 
   return <section className="mx-auto max-w-4xl px-5 py-12 sm:py-16">
-    <Link className="text-sm font-bold text-arena-700" href={`/timy/${teamId}`}>← Späť na tím</Link>
+    <Link className="text-sm font-bold text-arena-700" href={`/timy/${teamId}/prehlad`}>← Späť na prehľad tímu</Link>
     <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><p className="eyebrow">{team.name}</p><h1 className="mt-2 text-3xl font-extrabold text-ink">Nominácie</h1><p className="mt-2 text-slate-600">{team.category} · sezóna {team.season}</p></div>{canManage && <a className="btn-primary" href="#nova-nominacia">Vytvoriť nomináciu</a>}</div>
 
     {canManage && <details className="mt-8 rounded-3xl border border-arena-200 bg-arena-50 p-5 sm:p-7" id="nova-nominacia"><summary className="cursor-pointer text-lg font-extrabold text-ink">Nová nominácia</summary>
