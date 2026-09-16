@@ -32,3 +32,28 @@ export async function swapGroupTeams(formData: FormData) {
   if (error) throw new Error("Tímy sa nepodarilo vymeniť.");
   revalidatePath(`/turnaje/${slug}`);
 }
+
+export async function setMatchStream(formData: FormData) {
+  const matchId = String(formData.get("matchId") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  const streamUrl = String(formData.get("streamUrl") ?? "").trim().slice(0, 500);
+  const streamStatus = String(formData.get("streamStatus") ?? "");
+  const remove = formData.get("remove") === "true";
+  if (!uuid.test(matchId) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("Neplatný zápas.");
+  if (!remove) {
+    let parsed: URL;
+    try { parsed = new URL(streamUrl); } catch { throw new Error("Zadajte platný odkaz na prenos."); }
+    if (parsed.protocol !== "https:" || !["scheduled", "live", "ended"].includes(streamStatus)) throw new Error("Prenos musí používať bezpečný HTTPS odkaz.");
+  }
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  if (!auth?.claims?.sub) redirect("/prihlasenie");
+  const { error } = await supabase.rpc("set_tournament_match_stream", {
+    p_match_id: matchId,
+    p_stream_url: remove ? null : streamUrl,
+    p_stream_status: remove ? null : streamStatus,
+  });
+  if (error) throw new Error("Prenos sa nepodarilo uložiť.");
+  revalidatePath(`/turnaje/${slug}`);
+}

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 
 export type PlanTeam = { id: string; group_id: string; slot_number: number; team_name: string };
-export type PlanMatch = { id: string; group_id: string | null; phase: "group" | "placement" | "playoff"; round_number: number; match_number: number; starts_at: string; field_number: number; home_team_name: string | null; away_team_name: string | null; home_source: string | null; away_source: string | null; home_score: number | null; away_score: number | null; status: "scheduled" | "finished" };
+export type PlanMatch = { id: string; group_id: string | null; phase: "group" | "placement" | "playoff"; round_number: number; match_number: number; starts_at: string; field_number: number; home_team_name: string | null; away_team_name: string | null; home_source: string | null; away_source: string | null; home_score: number | null; away_score: number | null; status: "scheduled" | "finished"; live_stream_url: string | null; live_stream_status: "scheduled" | "live" | "ended" | null };
 export type PlanGroup = { id: string; code: string; name: string; sort_order: number; teams: PlanTeam[] };
 export type Standing = { name: string; played: number; wins: number; draws: number; losses: number; scored: number; conceded: number; difference: number; points: number };
 
@@ -15,7 +15,7 @@ export async function getTournamentPlan(slug: string) {
   const [{ data: groups }, { data: teams }, { data: matches }] = await Promise.all([
     supabase.from("tournament_groups").select("id,code,name,sort_order").eq("tournament_id", tournament.id).order("sort_order"),
     supabase.from("tournament_group_teams").select("id,group_id,slot_number,team_name").eq("tournament_id", tournament.id).order("slot_number"),
-    supabase.from("tournament_matches").select("id,group_id,phase,round_number,match_number,starts_at,field_number,home_team_name,away_team_name,home_source,away_source,home_score,away_score,status").eq("tournament_id", tournament.id).order("match_number"),
+    supabase.from("tournament_matches").select("id,group_id,phase,round_number,match_number,starts_at,field_number,home_team_name,away_team_name,home_source,away_source,home_score,away_score,status,live_stream_url,live_stream_status").eq("tournament_id", tournament.id).order("match_number"),
   ]);
   const planGroups = ((groups ?? []) as Omit<PlanGroup, "teams">[]).map((group) => ({ ...group, teams: ((teams ?? []) as PlanTeam[]).filter((team) => team.group_id === group.id) }));
   return { groups: planGroups, matches: (matches ?? []) as PlanMatch[], canManage: auth?.claims?.sub === tournament.organizer_id };
