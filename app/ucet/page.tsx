@@ -95,7 +95,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <div className="mt-5 space-y-4">
             {players?.map((player) => <article className="rounded-2xl border border-slate-200 bg-slate-50 p-5" key={player.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h3 className="font-extrabold text-ink">{player.full_name}</h3><p className="mt-1 text-sm text-slate-600">{player.birth_date ? `Narodenie: ${date.format(new Date(`${player.birth_date}T12:00:00Z`))} · ` : ""}{guardianCount.get(player.id) ?? 1} {(guardianCount.get(player.id) ?? 1) === 1 ? "správca" : "správcovia"}</p>{(teamsByPlayer.get(player.id)?.length ?? 0) > 0 && <div className="mt-3 flex flex-wrap gap-2">{teamsByPlayer.get(player.id)?.map((team) => <Link className="rounded-full bg-arena-100 px-3 py-1 text-xs font-bold text-arena-800 transition hover:bg-arena-200" href={`/timy/${team.id}`} key={team.id}>Tím: {team.label} →</Link>)}</div>}</div>
+                <div><h3 className="font-extrabold text-ink">{player.full_name}</h3><p className="mt-1 text-sm text-slate-600">{player.birth_date ? `Narodenie: ${date.format(new Date(`${player.birth_date}T12:00:00Z`))} · ` : ""}{guardianCount.get(player.id) ?? 1} {(guardianCount.get(player.id) ?? 1) === 1 ? "správca" : "správcovia"}</p>{(teamsByPlayer.get(player.id)?.length ?? 0) > 0 && <div className="mt-3 flex flex-wrap gap-2">{teamsByPlayer.get(player.id)?.map((team) => <Link className="rounded-full bg-arena-100 px-3 py-1 text-xs font-bold text-arena-800 transition hover:bg-arena-200" href={`/timy/${team.id}/prehlad`} key={team.id}>Tím: {team.label} →</Link>)}</div>}</div>
                 {guardianLinks?.some((link) => link.player_id === player.id && link.guardian_user_id === userId && link.is_primary) && <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-arena-700">Hlavný rodič</span>}
               </div>
               <details className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
@@ -125,7 +125,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           {sentInvitations.length > 0 && <details className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4"><summary className="cursor-pointer text-sm font-bold text-slate-700">Odoslané pozvania ({sentInvitations.length})</summary><div className="mt-3 space-y-2">{sentInvitations.map((invitation) => <p className="text-sm text-slate-600" key={invitation.id}>{playerById.get(invitation.player_id)?.full_name ?? "Hráč"} · {invitation.invited_email} · <strong>{invitation.status === "pending" && new Date(invitation.expires_at) <= new Date() ? "vypršalo" : invitation.status === "pending" ? "čaká" : invitation.status === "accepted" ? "prijaté" : invitation.status === "declined" ? "odmietnuté" : invitation.status === "expired" ? "vypršalo" : "zrušené"}</strong></p>)}</div></details>}
         </div>
 
-        <div className="mt-8 border-t border-slate-200 pt-6">
+        <div className="mt-8 border-t border-slate-200 pt-6" id="klubovy-tim">
           <h2 className="text-lg font-extrabold text-ink">Môj klubový tím</h2>
           <p className="mt-2 text-sm text-slate-600">Vyberte konkrétny tím a požiadajte o overenie. Prístup nevznikne automaticky.</p>
           <form action={requestTeamAccess} className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -156,7 +156,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             {memberships?.map((membership) => <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4" key={membership.team_id}>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-bold text-ink">{teamById.get(membership.team_id)?.name ?? "Tím"}</p>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600">{rosterByTeam.get(membership.team_id)?.filter((player) => player.status === "active").length ?? 0} hráčov</span>
+                <div className="flex items-center gap-2"><span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600">{rosterByTeam.get(membership.team_id)?.filter((player) => player.status === "active").length ?? 0} hráčov</span><Link className="text-sm font-bold text-arena-700" href={`/timy/${membership.team_id}/prehlad`}>Otvoriť tím →</Link></div>
               </div>
               <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
                 {(rosterByTeam.get(membership.team_id)?.length ?? 0) > 0 ? <ul className="divide-y divide-slate-100">
