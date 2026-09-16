@@ -51,3 +51,27 @@ export async function respondToNomination(formData: FormData) {
   revalidatePath(`/timy/${teamId}/nominacie`);
   redirect(`/nominacie/${nominationId}?stav=odpoved-ulozena`);
 }
+
+export async function recordTrainingAttendance(formData: FormData) {
+  const nominationId = String(formData.get("nominationId") ?? "");
+  const teamId = String(formData.get("teamId") ?? "");
+  const playerId = String(formData.get("playerId") ?? "");
+  const attendanceStatus = String(formData.get("attendanceStatus") ?? "");
+  if (![nominationId, teamId, playerId].every((id) => uuid.test(id)) || !["present", "absent", "unmarked"].includes(attendanceStatus)) {
+    throw new Error("Neplatný záznam dochádzky.");
+  }
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  if (!auth?.claims?.sub) redirect("/prihlasenie");
+  const { error } = await supabase.rpc("record_training_attendance", {
+    p_nomination_id: nominationId,
+    p_player_id: playerId,
+    p_attendance_status: attendanceStatus,
+  });
+  if (error) throw new Error("Dochádzku sa nepodarilo uložiť.");
+
+  revalidatePath(`/nominacie/${nominationId}`);
+  revalidatePath(`/timy/${teamId}/kalendar`);
+  redirect(`/nominacie/${nominationId}?stav=dochadzka-ulozena`);
+}
