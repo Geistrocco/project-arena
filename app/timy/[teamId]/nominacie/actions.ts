@@ -75,3 +75,31 @@ export async function recordTrainingAttendance(formData: FormData) {
   revalidatePath(`/timy/${teamId}/kalendar`);
   redirect(`/nominacie/${nominationId}?stav=dochadzka-ulozena`);
 }
+
+export async function setNominationStream(formData: FormData) {
+  const nominationId = String(formData.get("nominationId") ?? "");
+  const teamId = String(formData.get("teamId") ?? "");
+  const streamUrl = String(formData.get("streamUrl") ?? "").trim().slice(0, 500);
+  const streamStatus = String(formData.get("streamStatus") ?? "");
+  const remove = formData.get("remove") === "true";
+  if (![nominationId, teamId].every((id) => uuid.test(id))) throw new Error("Neplatná udalosť.");
+  if (!remove) {
+    let parsed: URL;
+    try { parsed = new URL(streamUrl); } catch { throw new Error("Zadajte platný odkaz na prenos."); }
+    if (parsed.protocol !== "https:" || !["scheduled", "live", "ended"].includes(streamStatus)) throw new Error("Prenos musí používať bezpečný HTTPS odkaz.");
+  }
+
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  if (!auth?.claims?.sub) redirect("/prihlasenie");
+  const { error } = await supabase.rpc("set_team_nomination_stream", {
+    p_nomination_id: nominationId,
+    p_stream_url: remove ? null : streamUrl,
+    p_stream_status: remove ? null : streamStatus,
+  });
+  if (error) throw new Error("Prenos sa nepodarilo uložiť.");
+
+  revalidatePath(`/nominacie/${nominationId}`);
+  revalidatePath(`/timy/${teamId}/nominacie`);
+  redirect(`/nominacie/${nominationId}?stav=${remove ? "prenos-odstraneny" : "prenos-ulozeny"}`);
+}
