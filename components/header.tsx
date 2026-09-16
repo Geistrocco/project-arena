@@ -28,12 +28,13 @@ export function Header() {
         </Link>
         <nav className="hidden items-center gap-8 md:flex" aria-label="Hlavná navigácia">
           <Link className="nav-link" href="/">Turnaje</Link>
+          {email && <Link className="nav-link" href="/moj-tim">Môj tím</Link>}
           <Link className="nav-link" href="/vytvorit-turnaj">Vytvoriť turnaj</Link>
           {email ? <div className="flex items-center gap-3"><Link className="nav-link max-w-48 truncate" href="/ucet">{email}</Link><button className="btn-secondary" type="button" onClick={signOut}>Odhlásiť sa</button></div> : <Link className="btn-secondary" href="/prihlasenie">Prihlásiť sa</Link>}
         </nav>
         <button className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 md:hidden" onClick={() => setOpen(!open)} aria-label="Otvoriť menu" aria-expanded={open}>{open ? <CloseIcon /> : <MenuIcon />}</button>
       </div>
-      {open && <nav className="border-t border-slate-100 bg-white px-5 py-4 md:hidden"><div className="mx-auto flex max-w-7xl flex-col gap-2"><Link className="mobile-link" href="/" onClick={() => setOpen(false)}>Turnaje</Link><Link className="mobile-link" href="/vytvorit-turnaj" onClick={() => setOpen(false)}>Vytvoriť turnaj</Link>{email ? <><Link className="mobile-link" href="/ucet" onClick={() => setOpen(false)}>Môj účet</Link><button className="mobile-link text-left" onClick={signOut}>Odhlásiť sa</button></> : <Link className="mobile-link" href="/prihlasenie" onClick={() => setOpen(false)}>Prihlásiť sa</Link>}</div></nav>}
+      {open && <nav className="border-t border-slate-100 bg-white px-5 py-4 md:hidden"><div className="mx-auto flex max-w-7xl flex-col gap-2"><Link className="mobile-link" href="/" onClick={() => setOpen(false)}>Turnaje</Link>{email && <Link className="mobile-link" href="/moj-tim" onClick={() => setOpen(false)}>Môj tím</Link>}<Link className="mobile-link" href="/vytvorit-turnaj" onClick={() => setOpen(false)}>Vytvoriť turnaj</Link>{email ? <><Link className="mobile-link" href="/ucet" onClick={() => setOpen(false)}>Môj účet</Link><button className="mobile-link text-left" onClick={signOut}>Odhlásiť sa</button></> : <Link className="mobile-link" href="/prihlasenie" onClick={() => setOpen(false)}>Prihlásiť sa</Link>}</div></nav>}
     </header>
   );
 }
