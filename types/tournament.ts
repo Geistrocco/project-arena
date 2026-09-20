@@ -1,3 +1,5 @@
+import type { TournamentCountry } from "@/lib/tournament-location";
+
 export type RegistrationStatus = "Otvorená" | "Posledné miesta" | "Plná kapacita";
 
 export interface Tournament {
@@ -8,7 +10,9 @@ export interface Tournament {
   date: string;
   displayDate: string;
   city: string;
-  country: "Slovensko" | "Česko";
+  country: TournamentCountry;
+  region?: string | null;
+  surface?: string | null;
   registered: number;
   capacity: number;
   participantLabel: "tímov" | "hráčov";
