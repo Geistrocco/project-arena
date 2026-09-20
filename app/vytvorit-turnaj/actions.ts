@@ -5,11 +5,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { clubsById } from "@/data/clubs";
 import { createTournamentPlan } from "@/lib/tournament-plan";
+import { resolveTournamentFormat } from "@/lib/tournament-format";
 import { isCountry, isRegion, isSurface } from "@/lib/tournament-location";
 
 const types: Record<string, string> = { "Verejný": "public", "Pozvánkový": "invitation", "Kombinovaný": "combined" };
 const visibilities: Record<string, string> = { "Zobrazovať všetkým": "all", "Iba prijatým tímom": "accepted", "Nezobrazovať": "hidden" };
-const gameSystems = new Set(["groups_playoff", "round_robin", "groups_placement"]);
 
 export async function createTournament(formData: FormData) {
   const text = (name: string, max: number) => String(formData.get(name) ?? "").trim().replace(/\s+/g, " ").slice(0, max);
@@ -21,8 +21,7 @@ export async function createTournament(formData: FormData) {
   const startTime = text("startTime", 5); const lunchBreak = formData.get("lunchBreak") === "on";
   const lunchStart = lunchBreak ? text("lunchStart", 5) : null; const lunchDuration = lunchBreak ? number("lunchDuration") : null;
   const tournamentType = types[text("type", 30)]; const visibility = visibilities[text("visibility", 40)];
-  const gameSystem = text("gameSystem", 30); const qualifiers = gameSystem === "groups_playoff" ? number("qualifiersPerGroup") : null;
-  const thirdPlace = gameSystem === "groups_playoff" && formData.get("thirdPlaceMatch") === "on";
+
   const clubIds = formData.getAll("clubIds").map(String).filter((id) => /^[a-z0-9][a-z0-9-]{0,99}$/i.test(id));
   const customTeams = formData.getAll("customTeams").map((item) => String(item).trim().slice(0, 180)).filter((item) => item.length >= 2);
   if (name.length < 3 || sport.length < 2 || !category || place.length < 2 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Skontrolujte základné údaje turnaja.");
@@ -30,14 +29,16 @@ export async function createTournament(formData: FormData) {
   if (!Number.isInteger(capacity) || capacity < 2 || capacity > 256 || !Number.isInteger(fields) || fields < 1 || fields > 32 || !Number.isInteger(duration) || duration < 1 || duration > 240 || !Number.isFinite(fee) || fee < 0 || fee > 100000) throw new Error("Skontrolujte formát turnaja.");
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) || (lunchBreak && (!lunchStart || !/^([01]\d|2[0-3]):[0-5]\d$/.test(lunchStart) || lunchDuration === null || !Number.isInteger(lunchDuration) || lunchDuration < 15 || lunchDuration > 180))) throw new Error("Skontrolujte časový plán turnaja.");
   if (!tournamentType || !visibility) throw new Error("Skontrolujte typ a viditeľnosť turnaja.");
-  if (!gameSystems.has(gameSystem) || (gameSystem === "groups_playoff" && (qualifiers === null || !Number.isInteger(qualifiers) || qualifiers < 1 || qualifiers > 2))) throw new Error("Skontrolujte systém hry.");
 
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getClaims();
   if (!auth?.claims?.sub) redirect("/prihlasenie?dovod=turnaj");
   const selectedNames = clubIds.map((id) => clubsById.get(id)?.name).filter((item): item is string => Boolean(item));
   const teamNames = [...new Set([...selectedNames, ...customTeams])];
-  const plan = createTournamentPlan({ teamNames, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem: gameSystem as "groups_playoff" | "round_robin" | "groups_placement" });
+  if (teamNames.length > capacity) throw new Error("Počet vybraných tímov je vyšší než kapacita turnaja.");
+  const format = resolveTournamentFormat(formData, { teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration });
+  const { gameSystem, qualifiers, thirdPlace } = format;
+  const plan = { ...createTournamentPlan({ teamNames, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem, groupSizes: format.groupSizes, finalMode: format.finalMode, qualifiersPerGroup: qualifiers ?? undefined, thirdPlaceMatch: thirdPlace }), format_settings: format.formatSettings, preferred_end: format.preferredEnd };
   const { data: slug, error } = await supabase.rpc("create_tournament_with_location", {
     p_name: name, p_sport: sport, p_category: category, p_event_date: date, p_place: place,
     p_country: country, p_region: region, p_surface: surface,
