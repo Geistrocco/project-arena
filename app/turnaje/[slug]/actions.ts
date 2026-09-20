@@ -16,6 +16,7 @@ export async function saveMatchScore(formData: FormData) {
   const { data: auth } = await supabase.auth.getClaims();
   if (!auth?.claims?.sub) redirect("/prihlasenie");
   const { error } = await supabase.rpc("update_tournament_match_score", { p_match_id: matchId, p_home_score: homeScore, p_away_score: awayScore });
+  if (error?.message.includes("Playoff matches need a winner")) throw new Error("Zápas play-off musí mať víťaza. Zadajte konečný výsledok po rozhodnutí zápasu.");
   if (error) throw new Error("Výsledok sa nepodarilo uložiť.");
   revalidatePath(`/turnaje/${slug}`);
 }
