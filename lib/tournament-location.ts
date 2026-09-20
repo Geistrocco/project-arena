@@ -4,7 +4,7 @@ export const REGIONS = {
 } as const;
 
 export type TournamentCountry = keyof typeof REGIONS;
-export const SURFACES = ["Prírodný trávnik", "Umelá tráva", "Hala", "Ľadová plocha", "Antuka", "Tvrdý povrch", "Iný povrch"] as const;
+export const SURFACES = ["Prírodný trávnik", "Umelý trávnik", "Hala", "Ľadová plocha", "Antuka", "Tvrdý povrch", "Iný povrch"] as const;
 
 export function isCountry(value: string): value is TournamentCountry {
   return Object.hasOwn(REGIONS, value);

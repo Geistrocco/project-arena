@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { REGIONS, type TournamentCountry } from "@/lib/tournament-location";
+import { REGIONS, SURFACES, type TournamentCountry } from "@/lib/tournament-location";
 import type { Tournament } from "@/types/tournament";
 import { SearchIcon } from "@/components/icons";
 import { TournamentCard } from "@/components/tournament-card";
@@ -18,7 +18,6 @@ export function TournamentCatalog({ tournaments, sports }: { tournaments: Tourna
   const countries = useMemo(() => [...new Set(tournaments.map((item) => item.country))], [tournaments]);
   const regions = country ? [...REGIONS[country as TournamentCountry]] : [];
   const categories = useMemo(() => [...new Set(tournaments.filter((item) => !sport || item.sport === sport).map((item) => item.category))].sort((a, b) => a.localeCompare(b, "sk", { numeric: true })), [tournaments, sport]);
-  const surfaces = useMemo(() => [...new Set(tournaments.filter((item) => (!sport || item.sport === sport) && (!country || item.country === country)).flatMap((item) => item.surface ? [item.surface] : []))].sort((a, b) => a.localeCompare(b, "sk")), [tournaments, sport, country]);
   const filtered = useMemo(() => tournaments.filter((item) => {
     const q = query.trim().toLocaleLowerCase("sk");
     return (!sport || item.sport === sport) && (!country || item.country === country)
@@ -35,7 +34,7 @@ export function TournamentCatalog({ tournaments, sports }: { tournaments: Tourna
         <Filter label="Krajina" value={country} onChange={(value) => { setCountry(value); setRegion(""); setSurface(""); }} options={countries} placeholder="Všetky krajiny" />
         <Filter label="Kraj" value={region} onChange={setRegion} options={regions} placeholder={country ? "Všetky kraje" : "Najprv vyberte krajinu"} disabled={!country} />
         <Filter label="Kategória" value={category} onChange={setCategory} options={categories} placeholder="Všetky kategórie" />
-        <Filter label="Povrch" value={surface} onChange={setSurface} options={surfaces} placeholder="Všetky povrchy" />
+        <Filter label="Povrch" value={surface} onChange={setSurface} options={[...SURFACES]} placeholder="Všetky povrchy" />
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
         <label className="relative"><span className="sr-only">Názov turnaja alebo mesto</span><SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/><input className="field pl-12" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Názov turnaja alebo mesto" /></label>
