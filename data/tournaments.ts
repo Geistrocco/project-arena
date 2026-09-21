@@ -2,6 +2,14 @@ import type { Tournament } from "@/types/tournament";
 
 export const tournaments: Tournament[] = [
   {
+    slug: "demo-zlata-strieborna-skupina", name: "Demo Cup – Zlatá a strieborná skupina", sport: "Futbal", category: "U12",
+    date: "2027-06-12", displayDate: "12. jún 2027", city: "Senec", country: "Slovensko", region: "Bratislavský kraj", surface: "Umelý trávnik",
+    registered: 12, capacity: 12, participantLabel: "tímov", fee: 0, status: "Plná kapacita", organizer: "Tournio demo",
+    description: "Ukážkový turnaj pre 12 tímov. Tri základné skupiny po štyroch tímoch hrajú každý s každým. Prvé dva tímy z každej skupiny postupujú do Zlatej skupiny, zvyšné tímy do Striebornej skupiny. V nadstavbe sa výsledky začínajú od nuly a obe skupiny opäť hrajú každý s každým.",
+    rules: ["12 tímov · 3 základné skupiny po 4", "Prví dvaja postupujú do Zlatej skupiny", "Tretí a štvrtý postupujú do Striebornej skupiny", "Zápas 20 minút + 5 minút na výmenu tímov", "Tri ihriská · 48 zápasov spolu"],
+    participants: [...groupTeamsForCatalog()],
+  },
+  {
     slug: "summer-cup-2027", name: "Summer Cup 2027", sport: "Futbal", category: "U11",
     date: "2027-06-19", displayDate: "19. – 20. jún 2027", city: "Bratislava", country: "Slovensko", region: "Bratislavský kraj", surface: "Prírodný trávnik",
     registered: 8, capacity: 12, participantLabel: "tímov", fee: 180, status: "Otvorená",
@@ -42,5 +50,9 @@ export const tournaments: Tournament[] = [
     description: "Prestížny mládežnícky turnaj s tímami z celej strednej Európy.", rules: ["Hrá sa 8 + 1", "Hrací čas je 2 × 18 minút"], participants: ["AC Sparta Praha", "SK Slavia Praha", "Bohemians Praha 1905"],
   },
 ];
+
+function groupTeamsForCatalog() {
+  return ["MŠK Senec", "ŠK Slovan Bratislava", "FC Petržalka", "FK Inter Bratislava", "FC Spartak Trnava", "FC DAC 1904", "FC Nitra", "MFK Skalica", "MŠK Žilina", "AS Trenčín", "FK Pohronie", "FC ViOn Zlaté Moravce"];
+}
 
 export const sports = ["Všetky športy", ...Array.from(new Set(tournaments.map((item) => item.sport)))];
