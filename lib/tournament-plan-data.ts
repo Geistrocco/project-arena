@@ -1,11 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
+import { demoGoldSilverPlan } from "@/data/demo-tournament-plan";
 
 export type PlanTeam = { id: string; group_id: string; slot_number: number; team_name: string };
-export type PlanMatch = { id: string; group_id: string | null; phase: "group" | "placement" | "playoff"; round_number: number; match_number: number; starts_at: string; field_number: number; home_team_name: string | null; away_team_name: string | null; home_source: string | null; away_source: string | null; home_score: number | null; away_score: number | null; status: "scheduled" | "finished"; live_stream_url: string | null; live_stream_status: "scheduled" | "live" | "ended" | null; resolved_home_name?: string | null; resolved_away_name?: string | null };
+export type PlanMatch = { id: string; group_id: string | null; phase: "group" | "final_group" | "placement" | "playoff"; round_number: number; match_number: number; starts_at: string; field_number: number; home_team_name: string | null; away_team_name: string | null; home_source: string | null; away_source: string | null; home_score: number | null; away_score: number | null; status: "scheduled" | "finished"; live_stream_url: string | null; live_stream_status: "scheduled" | "live" | "ended" | null; resolved_home_name?: string | null; resolved_away_name?: string | null };
 export type PlanGroup = { id: string; code: string; name: string; sort_order: number; teams: PlanTeam[] };
 export type Standing = { name: string; played: number; wins: number; draws: number; losses: number; scored: number; conceded: number; difference: number; points: number };
 
 export async function getTournamentPlan(slug: string) {
+  if (slug === "demo-zlata-strieborna-skupina") return demoGoldSilverPlan;
   const supabase = await createClient();
   const [{ data: auth }, { data: tournament }] = await Promise.all([
     supabase.auth.getClaims(),
@@ -34,7 +36,7 @@ export function calculateStandings(group: PlanGroup, matches: PlanMatch[]) {
 
 export function resolveTournamentSources(groups: PlanGroup[], matches: PlanMatch[]) {
   const byNumber = new Map(matches.map((match) => [match.match_number, match]));
-  const groupMatches = matches.filter((match) => match.phase === "group");
+  const groupMatches = matches.filter((match) => match.phase === "group" || match.phase === "final_group");
   const standings = new Map(groups.map((group) => [group.code, groupMatches.filter((match) => match.group_id === group.id).every((match) => match.status === "finished")
     ? calculateStandings(group, groupMatches) : null]));
   function resolve(source: string | null, seen = new Set<number>()): string | null {
