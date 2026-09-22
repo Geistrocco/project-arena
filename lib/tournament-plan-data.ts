@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { demoGoldSilverPlan } from "@/data/demo-tournament-plan";
 
 export type PlanTeam = { id: string; group_id: string; slot_number: number; team_name: string };
 export type PlanMatch = { id: string; group_id: string | null; phase: "group" | "final_group" | "placement" | "playoff"; round_number: number; match_number: number; starts_at: string; field_number: number; home_team_name: string | null; away_team_name: string | null; home_source: string | null; away_source: string | null; home_score: number | null; away_score: number | null; status: "scheduled" | "finished"; live_stream_url: string | null; live_stream_status: "scheduled" | "live" | "ended" | null; resolved_home_name?: string | null; resolved_away_name?: string | null };
@@ -7,10 +6,6 @@ export type PlanGroup = { id: string; code: string; name: string; sort_order: nu
 export type Standing = { name: string; played: number; wins: number; draws: number; losses: number; scored: number; conceded: number; difference: number; points: number };
 
 export async function getTournamentPlan(slug: string) {
-  if (slug === "demo-zlata-strieborna-skupina") return {
-    ...demoGoldSilverPlan,
-    matches: resolveTournamentSources(demoGoldSilverPlan.groups, demoGoldSilverPlan.matches),
-  };
   const supabase = await createClient();
   const [{ data: auth }, { data: tournament }] = await Promise.all([
     supabase.auth.getClaims(),
