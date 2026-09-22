@@ -7,7 +7,10 @@ export type PlanGroup = { id: string; code: string; name: string; sort_order: nu
 export type Standing = { name: string; played: number; wins: number; draws: number; losses: number; scored: number; conceded: number; difference: number; points: number };
 
 export async function getTournamentPlan(slug: string) {
-  if (slug === "demo-zlata-strieborna-skupina") return demoGoldSilverPlan;
+  if (slug === "demo-zlata-strieborna-skupina") return {
+    ...demoGoldSilverPlan,
+    matches: resolveTournamentSources(demoGoldSilverPlan.groups, demoGoldSilverPlan.matches),
+  };
   const supabase = await createClient();
   const [{ data: auth }, { data: tournament }] = await Promise.all([
     supabase.auth.getClaims(),
