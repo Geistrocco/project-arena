@@ -1,3 +1,4 @@
+-- Keep later round-robin stages distinct from preliminary groups in the UI.
 alter table public.tournament_matches
   drop constraint tournament_matches_phase_check;
 
