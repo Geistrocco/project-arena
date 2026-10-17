@@ -3,8 +3,47 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { sendTournamentScorekeeperNotification } from "@/lib/email/tournament-scorekeeper-notification";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export type ScorekeeperActionState = { success?: boolean; message?: string };
+
+export async function grantTournamentScorekeeper(_previous: ScorekeeperActionState, formData: FormData): Promise<ScorekeeperActionState> {
+  const slug = String(formData.get("slug") ?? "");
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!slugPattern.test(slug) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { message: "Zadajte platný e-mail." };
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  if (!auth?.claims?.sub) redirect("/prihlasenie");
+  const { data, error } = await supabase.rpc("grant_tournament_scorekeeper", { p_slug: slug, p_email: email });
+  if (error?.message.includes("USER_NOT_FOUND")) return { message: "Používateľ s týmto potvrdeným e-mailom nie je zaregistrovaný alebo je jeho účet pozastavený." };
+  if (error?.message.includes("ALREADY_ORGANIZER")) return { message: "Tento používateľ je organizátorom turnaja a oprávnenie už má." };
+  if (error || !data?.[0]) return { message: "Oprávnenie sa nepodarilo udeliť." };
+  const result = data[0];
+  revalidatePath(`/turnaje/${slug}`);
+  try {
+    await sendTournamentScorekeeperNotification({ to: result.assigned_email, fullName: result.assigned_name, tournamentName: result.tournament_name, tournamentSlug: slug, enabled: true, changeId: result.change_id });
+    return { success: true, message: "Oprávnenie bolo udelené a e-mail odoslaný." };
+  } catch {
+    return { success: true, message: "Oprávnenie bolo udelené, ale e-mail sa nepodarilo odoslať. Skontrolujte nastavenie odosielania." };
+  }
+}
+
+export async function revokeTournamentScorekeeper(formData: FormData) {
+  const assignmentId = String(formData.get("assignmentId") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  if (!uuid.test(assignmentId) || !slugPattern.test(slug)) throw new Error("Neplatná požiadavka.");
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  if (!auth?.claims?.sub) redirect("/prihlasenie");
+  const { data, error } = await supabase.rpc("revoke_tournament_scorekeeper", { p_assignment_id: assignmentId });
+  if (error || !data?.[0]) throw new Error("Oprávnenie sa nepodarilo odobrať.");
+  const result = data[0];
+  revalidatePath(`/turnaje/${slug}`);
+  try { await sendTournamentScorekeeperNotification({ to: result.assigned_email, fullName: result.assigned_name, tournamentName: result.tournament_name, tournamentSlug: result.tournament_slug, enabled: false, changeId: result.change_id }); } catch { /* Oprávnenie musí zostať odobraté aj pri výpadku e-mailu. */ }
+}
 
 export async function saveMatchScore(formData: FormData) {
   const matchId = String(formData.get("matchId") ?? "");

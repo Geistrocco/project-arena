@@ -16,7 +16,24 @@ export async function getTournamentPlan(slug: string) {
   ]);
   const planGroups = ((groups ?? []) as Omit<PlanGroup, "teams">[]).map((group) => ({ ...group, teams: ((teams ?? []) as PlanTeam[]).filter((team) => team.group_id === group.id) }));
   const planMatches = resolveTournamentSources(planGroups, (matches ?? []) as PlanMatch[]);
-  return { groups: planGroups, matches: planMatches, canManage: auth?.claims?.sub === tournament.organizer_id };
+  const userId = auth?.claims?.sub;
+  const canManage = userId === tournament.organizer_id;
+  const { data: assignments } = userId
+    ? await supabase.from("tournament_scorekeepers").select("id,user_id,invited_email,display_name,granted_at").eq("tournament_id", tournament.id).is("revoked_at", null).order("granted_at")
+    : { data: [] };
+  const scorekeepers = assignments ?? [];
+  return {
+    groups: planGroups,
+    matches: planMatches,
+    canManage,
+    canScore: canManage || Boolean(userId && scorekeepers.some((assignment) => assignment.user_id === userId)),
+    scorekeepers: canManage ? scorekeepers.map((assignment) => ({
+      id: assignment.id,
+      invited_email: assignment.invited_email,
+      display_name: assignment.display_name,
+      granted_at: assignment.granted_at,
+    })) : [],
+  };
 }
 
 export function resolveTournamentSources(groups: PlanGroup[], matches: PlanMatch[]) {
