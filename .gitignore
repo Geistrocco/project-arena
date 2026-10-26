@@ -7,3 +7,4 @@ out
 .vercel
 .env
 tmp/
+supabase/.temp/

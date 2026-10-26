@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { saveMatchScore, setMatchStream, swapGroupTeams } from "@/app/turnaje/[slug]/actions";
 import { calculateStandings, type PlanGroup, type PlanMatch, type PlanTeam } from "@/lib/tournament-plan-calculations";
 
-export function TournamentPlan({ slug, groups, matches, canManage, canScore, embedded = false }: { slug: string; groups: PlanGroup[]; matches: PlanMatch[]; canManage: boolean; canScore: boolean; embedded?: boolean }) {
+export function TournamentPlan({ slug, groups, matches, canManage, canScore, embedded = false, resultsLocked = false }: { slug: string; groups: PlanGroup[]; matches: PlanMatch[]; canManage: boolean; canScore: boolean; embedded?: boolean; resultsLocked?: boolean }) {
   const teamNames = useMemo(() => [...new Set(groups.flatMap((group) => group.teams.map((team) => team.team_name)))].sort((a, b) => a.localeCompare(b, "sk")), [groups]);
   const [selectedTeam, setSelectedTeam] = useState("");
   if (!groups.length || !matches.length) return null;
@@ -35,7 +35,7 @@ export function TournamentPlan({ slug, groups, matches, canManage, canScore, emb
         </select>
         {selectedTeam && <span className="mt-2 block font-normal text-slate-600">Zobrazujeme iba zápasy a tabuľky tímu {selectedTeam}.</span>}
       </label>}
-      {canManage && allTeams.length > 1 && <form action={swapGroupTeams} className="mt-6 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+      {canManage && !resultsLocked && allTeams.length > 1 && <form action={swapGroupTeams} className="mt-6 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <input type="hidden" name="slug" value={slug}/><TeamSelect name="firstId" label="Vymeniť tím" teams={allTeams}/><TeamSelect name="secondId" label="Za tím" teams={allTeams}/><button className="rounded-xl bg-ink px-5 py-3 text-sm font-bold text-white">Vymeniť</button>
       </form>}
       <div className="mt-8 grid min-w-0 gap-8 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">

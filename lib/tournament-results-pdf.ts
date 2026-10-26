@@ -4,7 +4,7 @@ import path from "node:path";
 import type { Tournament } from "@/types/tournament";
 import { calculateStandings, type PlanGroup, type PlanMatch } from "@/lib/tournament-plan-calculations";
 
-export async function createResultsPdf(tournament: Tournament, groups: PlanGroup[], matches: PlanMatch[], siteUrl: string) {
+export async function createResultsPdf(tournament: Tournament, groups: PlanGroup[], matches: PlanMatch[], siteUrl: string, lockedAt: string | null = null) {
   const font = await readFile(path.join(process.cwd(), "assets/fonts/DejaVuSans.ttf"));
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   doc.addFileToVFS("DejaVuSans.ttf", font.toString("base64"));
@@ -45,7 +45,8 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
   text("TOURNIO / VÝSLEDKY TURNAJA", 10);
   y += 4; text(tournament.name, 22);
   text(`${tournament.displayDate} | ${tournament.city} | ${tournament.sport} | ${tournament.category}`);
-  text(complete ? "Odohrané zápasy - výsledky" : "PRIEBEŽNÉ VÝSLEDKY", 12);
+  text(lockedAt && complete ? "POTVRDENÉ KONEČNÉ VÝSLEDKY" : "PRIEBEŽNÉ VÝSLEDKY", 12);
+  if (complete && !lockedAt) text("Všetky zápasy sú odohrané. Čaká sa na potvrdenie organizátorom.", 9);
   text(`Vytvorené: ${created}`, 8);
   const singleFinal = groups.length === 1 && matches.every((m) => m.phase === "group");
   const placements = new Map<number, string>();
@@ -56,7 +57,7 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
     placements.set(rank, match.home_score > match.away_score ? home : away);
     placements.set(rank + 1, match.home_score > match.away_score ? away : home);
   }
-  if (complete) {
+  if (complete && lockedAt) {
     const finalGroup = groups.find((g) => g.code === "GOLD") ?? (singleFinal ? groups[0] : undefined);
     if (finalGroup) {
       const rows = calculateStandings(finalGroup, matches);
@@ -105,7 +106,7 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
   }
   const url = `${siteUrl.replace(/\/$/, "")}/turnaje/${encodeURIComponent(tournament.slug)}`;
   heading("Aktuálne výsledky online"); text(url, 8);
-  if (!complete) text("Turnaj ešte nie je dohraný. Poradie a výsledky sa môžu zmeniť.", 9);
+  if (!complete || !lockedAt) text("Výsledky nie sú potvrdené organizátorom. Poradie a výsledky sa môžu zmeniť.", 9);
   else text("Uvádzame iba jednoznačne rozhodnuté miesta. Pri zhode bodov, rozdielu skóre a strelených gólov musí konečné poradie potvrdiť organizátor.", 9);
   const count = doc.getNumberOfPages();
   for (let page = 1; page <= count; page++) { doc.setPage(page); doc.setFontSize(8); doc.setTextColor(110); doc.text(`Tournio | ${created} | ${page} / ${count}`, 16, 288); }
