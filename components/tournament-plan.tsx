@@ -24,7 +24,7 @@ export function TournamentPlan({ slug, groups, matches, canManage, canScore, emb
   const allTeams = groups.flatMap((group) => group.teams.map((team) => ({ ...team, groupName: group.name })));
   return <section className={embedded ? "" : "mx-auto max-w-7xl px-5 pt-10 lg:px-8"}>
     <div className="min-w-0 overflow-hidden rounded-3xl border bg-white p-5 shadow-card sm:p-8">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="eyebrow">Harmonogram turnaja</p><h2 className="mt-3 text-3xl font-black">Zápasy a priebežné tabuľky</h2><p className="mt-2 text-sm text-slate-500">Po uložení výsledku sa tabuľka automaticky prepočíta.</p></div></div>
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="eyebrow">Harmonogram turnaja</p><h2 className="mt-3 text-3xl font-black">Zápasy a priebežné tabuľky</h2><p className="mt-2 text-sm text-slate-500">Po uložení výsledku sa tabuľka automaticky prepočíta.</p></div><a className="btn-secondary shrink-0" href={`/turnaje/${slug}/vysledky.pdf`} download>Stiahnuť výsledky v PDF</a></div>
       {teamNames.length > 1 && <label className="mt-6 block max-w-md rounded-2xl border border-arena-200 bg-arena-50 p-4 text-sm font-extrabold text-ink">
         Sledovať tím
         <select className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 font-semibold" value={selectedTeam} onChange={(event) => {
