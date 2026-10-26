@@ -4,6 +4,8 @@ import { TournamentPlan } from "@/components/tournament-plan";
 import { TournamentScorekeepers } from "@/components/tournament-scorekeepers";
 import { getTournamentPlan } from "@/lib/tournament-plan-data";
 import { getTournamentBySlug } from "@/lib/tournaments";
+import { TournamentResultLock } from "@/components/tournament-result-lock";
+import { TournamentResultStatus } from "@/components/tournament-result-status";
 
 export const metadata = { title: "Administrácia turnaja" };
 
@@ -20,7 +22,7 @@ export default async function TournamentAdministration({ params, searchParams }:
     {query.stav === "upraveny" && <p className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 font-bold text-emerald-800" role="status">Zmeny turnaja boli uložené a harmonogram bol aktualizovaný.</p>}
     <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
       <div><Link className="text-sm font-bold text-slate-500 hover:text-arena-700" href="/moje-turnaje">← Moje turnaje</Link><p className="eyebrow mt-6">{plan.canManage ? "Administrácia turnaja" : "Zadávanie výsledkov"}</p><h1 className="mt-3 text-4xl font-black tracking-[-0.03em] sm:text-5xl">{tournament.name}</h1><p className="mt-3 text-slate-600">{tournament.displayDate} · {tournament.city}</p></div>
-      <div className="flex flex-wrap gap-3"><Link className="btn-secondary" href={`/turnaje/${slug}`}>Verejná stránka</Link>{plan.canManage && <Link className="btn-primary" href={`/turnaje/${slug}/upravit`}>Upraviť turnaj</Link>}</div>
+      <div className="flex flex-wrap gap-3"><Link className="btn-secondary" href={`/turnaje/${slug}`}>Verejná stránka</Link>{plan.canManage && !plan.lockedAt && <Link className="btn-primary" href={`/turnaje/${slug}/upravit`}>Upraviť turnaj</Link>}</div>
     </div>
 
     <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -30,7 +32,9 @@ export default async function TournamentAdministration({ params, searchParams }:
       <Stat label="Poverené osoby" value={String(plan.scorekeepers.length)} />
     </div>
 
-    <div className="mt-10"><TournamentPlan embedded slug={slug} groups={plan.groups} matches={plan.matches} canManage={plan.canManage} canScore={plan.canScore} /></div>
+    <div className="mt-8"><TournamentResultStatus lockedAt={plan.lockedAt} finished={plan.matches.length > 0 && finished === plan.matches.length} /></div>
+    {plan.canManage && <TournamentResultLock slug={slug} lockedAt={plan.lockedAt} unfinished={plan.matches.filter((m) => m.status !== "finished" || m.home_score === null || m.away_score === null).length} matchCount={plan.matches.length} />}
+    <div className="mt-10"><TournamentPlan embedded slug={slug} groups={plan.groups} matches={plan.matches} canManage={plan.canManage} canScore={plan.canScore && !plan.lockedAt} resultsLocked={Boolean(plan.lockedAt)} /></div>
 
     {plan.canManage && <div className="mt-10 grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
       <TournamentScorekeepers embedded slug={slug} scorekeepers={plan.scorekeepers} />

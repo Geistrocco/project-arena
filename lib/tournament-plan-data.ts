@@ -23,15 +23,19 @@ export async function getTournamentPlan(slug: string, options: { publicExport?: 
   const planMatches = resolveTournamentSources(planGroups, (matches ?? []) as PlanMatch[]);
   const userId = auth?.claims?.sub;
   const canManage = userId === tournament.organizer_id;
+  const { data: resultLock, error: lockError } = await supabase.from("tournament_result_locks").select("locked_at").eq("tournament_id", tournament.id).maybeSingle();
+  if (lockError) throw new Error("Stav uzamknutia výsledkov sa nepodarilo načítať.");
+  const lockedAt = resultLock?.locked_at ?? null;
   const { data: assignments } = userId && !options.publicExport
     ? await supabase.from("tournament_scorekeepers").select("id,user_id,invited_email,display_name,granted_at,revoked_at").eq("tournament_id", tournament.id).order("granted_at")
     : { data: [] };
   const scorekeepers = (assignments ?? []).filter((assignment) => assignment.revoked_at === null);
   const auditEvents: TournamentAuditEvent[] = [];
   if (canManage && !options.publicExport) {
-    const [{ data: scoreEvents }, { data: permissionEvents }] = await Promise.all([
+    const [{ data: scoreEvents }, { data: permissionEvents }, { data: lockEvents }] = await Promise.all([
       supabase.from("tournament_score_events").select("id,match_id,actor_user_id,previous_home_score,previous_away_score,new_home_score,new_away_score,created_at").eq("tournament_id", tournament.id).order("created_at", { ascending: false }).limit(30),
       supabase.from("tournament_scorekeeper_events").select("id,scorekeeper_user_id,action,created_at").eq("tournament_id", tournament.id).order("created_at", { ascending: false }).limit(30),
+      supabase.from("tournament_result_lock_events").select("id,action,reason,created_at").eq("tournament_id", tournament.id).order("created_at", { ascending: false }).limit(30),
     ]);
     const matchById = new Map(planMatches.map((match) => [match.id, match]));
     const personById = new Map((assignments ?? []).map((assignment) => [assignment.user_id, assignment.display_name || assignment.invited_email]));
@@ -44,12 +48,14 @@ export async function getTournamentPlan(slug: string, options: { publicExport?: 
     for (const event of permissionEvents ?? []) {
       auditEvents.push({ id: `permission-${event.id}`, title: event.action === "granted" ? "Udelené oprávnenie" : "Odobraté oprávnenie", detail: personById.get(event.scorekeeper_user_id) ?? "Používateľ", createdAt: event.created_at });
     }
+    for (const event of lockEvents ?? []) auditEvents.push({ id: `lock-${event.id}`, title: event.action === "locked" ? "Výsledky potvrdené a uzamknuté" : "Výsledky odomknuté", detail: event.reason ? `Organizátor: ${event.reason}` : "Organizátor potvrdil výsledky turnaja.", createdAt: event.created_at });
     auditEvents.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }
   return {
     groups: planGroups,
     matches: planMatches,
     canManage,
+    lockedAt,
     canScore: canManage || Boolean(userId && scorekeepers.some((assignment) => assignment.user_id === userId)),
     scorekeepers: canManage ? scorekeepers.map((assignment) => ({
       id: assignment.id,

@@ -11,7 +11,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   // Both reads use the requesting user's session and existing row-level policies.
   const [tournament, plan] = await Promise.all([getTournamentBySlug(slug), getTournamentPlan(slug, { publicExport: true })]);
   if (!tournament || !plan || !plan.matches.length) return new Response("Výsledky turnaja nie sú dostupné.", { status: 404 });
-  const pdf = await createResultsPdf(tournament, plan.groups, plan.matches, process.env.NEXT_PUBLIC_SITE_URL || "https://tournio.sk");
+  const pdf = await createResultsPdf(tournament, plan.groups, plan.matches, process.env.NEXT_PUBLIC_SITE_URL || "https://tournio.sk", plan.lockedAt);
   return new Response(pdf, { headers: {
     "Content-Type": "application/pdf",
     "Content-Disposition": `attachment; filename="tournio-${slug}-vysledky.pdf"`,

@@ -10,6 +10,25 @@ const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export type ScorekeeperActionState = { success?: boolean; message?: string };
 
+export async function setTournamentResultLock(_previous: ScorekeeperActionState, formData: FormData): Promise<ScorekeeperActionState> {
+  const slug = String(formData.get("slug") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!slugPattern.test(slug) || !["lock", "unlock"].includes(decision)) return { message: "Neplatná požiadavka." };
+  if (formData.get("confirmed") !== "yes") return { message: "Potvrďte zmenu stavu výsledkov." };
+  if (decision === "unlock" && (reason.length < 5 || reason.length > 1000)) return { message: "Uveďte dôvod odomknutia (5 až 1 000 znakov)." };
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("set_tournament_result_lock", { p_slug: slug, p_locked: decision === "lock", p_reason: reason || null });
+  if (error?.message.includes("UNFINISHED_MATCHES")) return { message: "Turnaj nemožno ukončiť. Doplňte výsledky všetkých zápasov." };
+  if (error?.message.includes("LOCK_STATE_CHANGED")) return { message: "Stav sa medzičasom zmenil. Obnovte stránku." };
+  if (error) return { message: "Zmenu sa nepodarilo uložiť. Uzamknutie spravuje iba organizátor turnaja." };
+  revalidatePath(`/turnaje/${slug}`);
+  revalidatePath(`/turnaje/${slug}/administracia`);
+  revalidatePath(`/turnaje/${slug}/upravit`);
+  revalidatePath(`/turnaje/${slug}/vysledky.pdf`);
+  return { success: true, message: decision === "lock" ? "Turnaj bol ukončený a výsledky sú potvrdené a uzamknuté." : "Výsledky boli odomknuté na opravu. Po úprave ich znovu potvrďte." };
+}
+
 export async function grantTournamentScorekeeper(_previous: ScorekeeperActionState, formData: FormData): Promise<ScorekeeperActionState> {
   const slug = String(formData.get("slug") ?? "");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -57,6 +76,7 @@ export async function saveMatchScore(formData: FormData) {
   const { data: auth } = await supabase.auth.getClaims();
   if (!auth?.claims?.sub) redirect("/prihlasenie");
   const { error } = await supabase.rpc("update_tournament_match_score", { p_match_id: matchId, p_home_score: homeScore, p_away_score: awayScore });
+  if (error?.message.includes("RESULTS_LOCKED")) throw new Error("Výsledky sú uzamknuté. Organizátor ich musí pred opravou odomknúť.");
   if (error?.message.includes("Playoff matches need a winner")) throw new Error("Zápas play-off musí mať víťaza. Zadajte konečný výsledok po rozhodnutí zápasu.");
   if (error) throw new Error("Výsledok sa nepodarilo uložiť.");
   revalidatePath(`/turnaje/${slug}`);
