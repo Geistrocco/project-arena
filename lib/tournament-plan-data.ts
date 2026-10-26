@@ -3,28 +3,32 @@ import { calculateStandings, type PlanGroup, type PlanMatch, type PlanTeam } fro
 export type { PlanGroup, PlanMatch, PlanTeam, Standing } from "@/lib/tournament-plan-calculations";
 export type TournamentAuditEvent = { id: string; title: string; detail: string; createdAt: string };
 
-export async function getTournamentPlan(slug: string) {
+export async function getTournamentPlan(slug: string, options: { publicExport?: boolean } = {}) {
   const supabase = await createClient();
   const [{ data: auth }, { data: tournament }] = await Promise.all([
     supabase.auth.getClaims(),
     supabase.from("tournaments").select("id,organizer_id").eq("slug", slug).maybeSingle(),
   ]);
   if (!tournament) return null;
-  const [{ data: groups }, { data: teams }, { data: matches }] = await Promise.all([
+  const [groupResult, teamResult, matchResult] = await Promise.all([
     supabase.from("tournament_groups").select("id,code,name,sort_order").eq("tournament_id", tournament.id).order("sort_order"),
     supabase.from("tournament_group_teams").select("id,group_id,slot_number,team_name").eq("tournament_id", tournament.id).order("slot_number"),
     supabase.from("tournament_matches").select("id,group_id,phase,round_number,match_number,starts_at,field_number,home_team_name,away_team_name,home_source,away_source,home_score,away_score,status,live_stream_url,live_stream_status").eq("tournament_id", tournament.id).order("match_number"),
   ]);
+  if (options.publicExport && (groupResult.error || teamResult.error || matchResult.error)) throw new Error("Výsledky sa nepodarilo načítať.");
+  const { data: groups } = groupResult;
+  const { data: teams } = teamResult;
+  const { data: matches } = matchResult;
   const planGroups = ((groups ?? []) as Omit<PlanGroup, "teams">[]).map((group) => ({ ...group, teams: ((teams ?? []) as PlanTeam[]).filter((team) => team.group_id === group.id) }));
   const planMatches = resolveTournamentSources(planGroups, (matches ?? []) as PlanMatch[]);
   const userId = auth?.claims?.sub;
   const canManage = userId === tournament.organizer_id;
-  const { data: assignments } = userId
+  const { data: assignments } = userId && !options.publicExport
     ? await supabase.from("tournament_scorekeepers").select("id,user_id,invited_email,display_name,granted_at,revoked_at").eq("tournament_id", tournament.id).order("granted_at")
     : { data: [] };
   const scorekeepers = (assignments ?? []).filter((assignment) => assignment.revoked_at === null);
   const auditEvents: TournamentAuditEvent[] = [];
-  if (canManage) {
+  if (canManage && !options.publicExport) {
     const [{ data: scoreEvents }, { data: permissionEvents }] = await Promise.all([
       supabase.from("tournament_score_events").select("id,match_id,actor_user_id,previous_home_score,previous_away_score,new_home_score,new_away_score,created_at").eq("tournament_id", tournament.id).order("created_at", { ascending: false }).limit(30),
       supabase.from("tournament_scorekeeper_events").select("id,scorekeeper_user_id,action,created_at").eq("tournament_id", tournament.id).order("created_at", { ascending: false }).limit(30),
