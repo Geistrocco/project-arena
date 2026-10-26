@@ -42,5 +42,5 @@ export async function updateTournament(formData: FormData) {
   if (error?.message.includes("Capacity below participating teams")) throw new Error("Kapacitu nemožno znížiť pod počet prihlásených alebo vybraných tímov.");
   if (error?.message.includes("RESET_CONFIRMATION_REQUIRED")) throw new Error("Zmena rozpisu vyžaduje potvrdenie vymazania výsledkov.");
   if (error) throw new Error("Zmeny turnaja sa nepodarilo uložiť.");
-  revalidatePath("/"); revalidatePath("/ucet"); revalidatePath(`/turnaje/${slug}`); redirect(`/turnaje/${slug}?stav=upraveny`);
+  revalidatePath("/"); revalidatePath("/ucet"); revalidatePath(`/turnaje/${slug}`); revalidatePath(`/turnaje/${slug}/administracia`); redirect(`/turnaje/${slug}/administracia?stav=upraveny`);
 }

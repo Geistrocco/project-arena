@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { saveMatchScore, setMatchStream, swapGroupTeams } from "@/app/turnaje/[slug]/actions";
 import { calculateStandings, type PlanGroup, type PlanMatch, type PlanTeam } from "@/lib/tournament-plan-calculations";
 
-export function TournamentPlan({ slug, groups, matches, canManage, canScore }: { slug: string; groups: PlanGroup[]; matches: PlanMatch[]; canManage: boolean; canScore: boolean }) {
+export function TournamentPlan({ slug, groups, matches, canManage, canScore, embedded = false }: { slug: string; groups: PlanGroup[]; matches: PlanMatch[]; canManage: boolean; canScore: boolean; embedded?: boolean }) {
   const teamNames = useMemo(() => [...new Set(groups.flatMap((group) => group.teams.map((team) => team.team_name)))].sort((a, b) => a.localeCompare(b, "sk")), [groups]);
   const [selectedTeam, setSelectedTeam] = useState("");
   if (!groups.length || !matches.length) return null;
@@ -22,7 +22,7 @@ export function TournamentPlan({ slug, groups, matches, canManage, canScore }: {
   const hasSingleFinalTable = basicGroups.length === 1 && finalGroups.length === 0 && finalMatches.length === 0;
   const groupNames = new Map(groups.map((group) => [group.id, group.name]));
   const allTeams = groups.flatMap((group) => group.teams.map((team) => ({ ...team, groupName: group.name })));
-  return <section className="mx-auto max-w-7xl px-5 pt-10 lg:px-8">
+  return <section className={embedded ? "" : "mx-auto max-w-7xl px-5 pt-10 lg:px-8"}>
     <div className="min-w-0 overflow-hidden rounded-3xl border bg-white p-5 shadow-card sm:p-8">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="eyebrow">Harmonogram turnaja</p><h2 className="mt-3 text-3xl font-black">Zápasy a priebežné tabuľky</h2><p className="mt-2 text-sm text-slate-500">Po uložení výsledku sa tabuľka automaticky prepočíta.</p></div></div>
       {teamNames.length > 1 && <label className="mt-6 block max-w-md rounded-2xl border border-arena-200 bg-arena-50 p-4 text-sm font-extrabold text-ink">
