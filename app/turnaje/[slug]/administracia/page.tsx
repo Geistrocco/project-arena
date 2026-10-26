@@ -26,7 +26,7 @@ export default async function TournamentAdministration({ params, searchParams }:
     </div>
 
     <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Stat label="Tímy" value={String(teams)} />
+      <Stat label={tournament.sport === "Tenis" ? "Hráči / dvojice" : "Tímy"} value={String(teams)} />
       <Stat label="Zápasy" value={String(plan.matches.length)} />
       <Stat label="Odohrané" value={`${finished}/${plan.matches.length}`} />
       <Stat label="Poverené osoby" value={String(plan.scorekeepers.length)} />

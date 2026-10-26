@@ -1,0 +1,27 @@
+"use client";
+import { useState } from "react";
+import { TennisMatchResult } from "@/components/tennis-match-result";
+import { calculateTennisStandings, type PlanGroup, type PlanMatch } from "@/lib/tournament-plan-calculations";
+import { swapGroupTeams, setMatchStream } from "@/app/turnaje/[slug]/actions";
+
+export function TennisTournamentPlan({ slug, groups, matches, canManage, canScore, resultsLocked }: { slug: string; groups: PlanGroup[]; matches: PlanMatch[]; canManage: boolean; canScore: boolean; resultsLocked: boolean }) {
+  const [player, setPlayer] = useState("");
+  const names = [...new Set(groups.flatMap((g) => g.teams.map((t) => t.team_name)))];
+  const knockout = ["knockout", "consolation"].includes(matches[0]?.tennis_system ?? "");
+  const phases = knockout ? [["playoff", "Hlavný pavúk"], ["placement", "Útecha"]] : [["group", "Skupinové zápasy"], ["playoff", "Play-off"]];
+  return <div className="rounded-3xl border bg-white p-5 shadow-card sm:p-8">
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow">Tenisový turnaj</p><h2 className="mt-2 text-3xl font-black">Zápasy a výsledky</h2></div><a className="btn-secondary" href={`/turnaje/${slug}/vysledky.pdf`} download>Stiahnuť výsledky v PDF</a></div>
+    <p className="mt-3 text-sm text-slate-600">Časy nástupu sú orientačné. O poradí v skupine rozhodujú výhry, pri dvoch zhodných hráčoch vzájomný zápas, pri viacerých podiel vyhraných setov a gemov. Pri úplnej zhode rozhoduje poradie úvodného žrebu (poradie účastníkov vo formulári).</p>
+    <label className="mt-5 block max-w-md"><span className="label">Sledovať hráča / dvojicu</span><select className="field" value={player} onChange={(e) => setPlayer(e.target.value)}><option value="">Všetci účastníci</option>{names.map((n) => <option key={n}>{n}</option>)}</select></label>
+    {canManage && !resultsLocked && !knockout && <form action={swapGroupTeams} className="mt-5 grid gap-3 rounded-xl bg-slate-50 p-4 sm:grid-cols-[1fr_1fr_auto]"><input name="slug" type="hidden" value={slug} />{["firstId", "secondId"].map((field, i) => <label key={field}><span className="label">{i ? "Za hráča / dvojicu" : "Vymeniť hráča / dvojicu"}</span><select name={field} className="field">{groups.flatMap((g) => g.teams.map((t) => <option key={t.id} value={t.id}>{t.team_name} · {g.name}</option>))}</select></label>)}<button className="btn-secondary self-end">Vymeniť</button></form>}
+    {!knockout && <div className="mt-8 grid gap-5 lg:grid-cols-2">{groups.filter((g) => !player || g.teams.some((t) => t.team_name === player)).map((group) => <section key={group.id} className="min-w-0"><h3 className="text-xl font-extrabold">{group.name}</h3><div className="mt-3 overflow-x-auto rounded-xl border"><table className="w-full min-w-[440px] text-sm"><thead className="bg-arena-50 text-xs"><tr><th className="p-3 text-left">Hráč / dvojica</th><th>Z</th><th>V</th><th>P</th><th>Sety</th><th className="pr-3">Gemy</th></tr></thead><tbody>{calculateTennisStandings(group, matches).map((r, i) => <tr key={r.name} className={`border-t ${r.name === player ? "bg-arena-50" : ""}`}><td className="p-3 font-bold">{i + 1}. {r.name}</td><td className="text-center">{r.played}</td><td className="text-center">{r.wins}</td><td className="text-center">{r.losses}</td><td className="text-center">{r.scored}:{r.conceded}</td><td className="pr-3 text-center">{r.gamesWon}:{r.gamesLost}</td></tr>)}</tbody></table></div></section>)}</div>}
+    {phases.map(([phase, label]) => {
+      const rows = matches.filter((m) => m.phase === phase && (!player || m.resolved_home_name === player || m.resolved_away_name === player));
+      if (!rows.length) return null;
+      return <section key={phase} className="mt-9"><h3 className="text-2xl font-extrabold">{label}</h3><div className="mt-4 grid gap-4 lg:grid-cols-2">{rows.map((m) => <article key={m.id} className="min-w-0 rounded-2xl border p-4"><p className="text-xs font-bold text-arena-700">#{m.match_number} · približne {m.starts_at.slice(0, 5)} · Kurt {m.field_number} · {m.group_id ? groups.find((g) => g.id === m.group_id)?.name : `Kolo ${m.round_number}`}</p><p className="my-4 break-words font-extrabold">{m.resolved_home_name ?? m.home_source ?? "Neurčený hráč"}<span className="mx-2 text-slate-400">–</span>{m.resolved_away_name ?? m.away_source ?? "Neurčený hráč"}</p><TennisMatchResult slug={slug} match={m} canScore={canScore && !resultsLocked} />
+        {m.live_stream_url && <a className="mt-3 block text-sm font-bold text-arena-700" href={m.live_stream_url} target="_blank" rel="noopener noreferrer">{m.live_stream_status === "live" ? "Naživo" : "Prenos / záznam"} ↗</a>}
+        {canManage && <details className="mt-3 text-sm"><summary className="cursor-pointer font-bold text-arena-700">Upraviť prenos</summary><form action={setMatchStream} className="mt-3 grid gap-2"><input name="slug" type="hidden" value={slug} /><input name="matchId" type="hidden" value={m.id} /><input className="field" name="streamUrl" type="url" defaultValue={m.live_stream_url ?? ""} placeholder="https://..." required /><select className="field" name="streamStatus" defaultValue={m.live_stream_status ?? "scheduled"}><option value="scheduled">Pripravený</option><option value="live">Naživo</option><option value="ended">Ukončený</option></select><button className="btn-secondary">Uložiť prenos</button></form></details>}
+      </article>)}</div></section>;
+    })}
+  </div>;
+}

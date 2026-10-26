@@ -10,6 +10,24 @@ const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export type ScorekeeperActionState = { success?: boolean; message?: string };
 
+export async function saveTennisMatchScore(_previous: ScorekeeperActionState, formData: FormData): Promise<ScorekeeperActionState> {
+  const slug = String(formData.get("slug") ?? ""); const id = String(formData.get("matchId") ?? "");
+  if (!slugPattern.test(slug) || !uuid.test(id)) return { message: "Neplatný zápas." };
+  const sets: { home: number; away: number }[] = [];
+  for (let i = 0; i < 3; i++) {
+    const h = String(formData.get(`home${i}`) ?? ""); const a = String(formData.get(`away${i}`) ?? "");
+    if (!h && !a) continue;
+    if (!/^\d{1,2}$/.test(h) || !/^\d{1,2}$/.test(a) || (i > 0 && sets.length !== i)) return { message: "Vyplňte oba výsledky setu postupne." };
+    sets.push({ home: Number(h), away: Number(a) });
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("update_tennis_match_score", { p_match_id: id, p_sets: sets });
+  if (error?.message.includes("RESULTS_LOCKED")) return { message: "Výsledky sú uzamknuté. Organizátor ich musí odomknúť." };
+  if (error) return { message: "Výsledok sa nepodarilo uložiť. Skontrolujte dohrané sety a zvolené bodovanie; tretí set je match-tiebreak do 10." };
+  revalidatePath(`/turnaje/${slug}`); revalidatePath(`/turnaje/${slug}/administracia`);
+  return { success: true, message: "Výsledok bol uložený." };
+}
+
 export async function setTournamentResultLock(_previous: ScorekeeperActionState, formData: FormData): Promise<ScorekeeperActionState> {
   const slug = String(formData.get("slug") ?? "");
   const decision = String(formData.get("decision") ?? "");

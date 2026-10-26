@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { TennisTournamentPlan } from "@/components/tennis-tournament-plan";
 import { saveMatchScore, setMatchStream, swapGroupTeams } from "@/app/turnaje/[slug]/actions";
 import { calculateStandings, type PlanGroup, type PlanMatch, type PlanTeam } from "@/lib/tournament-plan-calculations";
 
@@ -8,6 +9,7 @@ export function TournamentPlan({ slug, groups, matches, canManage, canScore, emb
   const teamNames = useMemo(() => [...new Set(groups.flatMap((group) => group.teams.map((team) => team.team_name)))].sort((a, b) => a.localeCompare(b, "sk")), [groups]);
   const [selectedTeam, setSelectedTeam] = useState("");
   if (!groups.length || !matches.length) return null;
+  if (matches[0]?.sport === "Tenis") return <section className={embedded ? "" : "mx-auto max-w-7xl px-5 pt-10 lg:px-8"}><TennisTournamentPlan slug={slug} groups={groups} matches={matches} canManage={canManage} canScore={canScore} resultsLocked={resultsLocked} /></section>;
   const includesSelectedTeam = (match: PlanMatch) => !selectedTeam || match.resolved_home_name === selectedTeam || match.resolved_away_name === selectedTeam;
   const groupMatches = matches.filter((match) => match.phase === "group");
   const finalGroupMatches = matches.filter((match) => match.phase === "final_group");

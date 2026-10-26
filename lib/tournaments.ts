@@ -3,9 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import type { Tournament } from "@/types/tournament";
 import type { GameSystem } from "@/lib/tournament-schedule";
 import type { TournamentCountry } from "@/lib/tournament-location";
-import type { FinalMode } from "@/lib/tournament-plan";
+import type { FormatSettings } from "@/lib/tournament-format";
+import { TENNIS_SYSTEMS, TENNIS_SCORING } from "@/lib/tennis";
 
-type TournamentRow = { slug: string; organizer_id?: string; name: string; sport: string; category: string; event_date: string; place: string; country: TournamentCountry; region: string | null; surface: string | null; registered_count: number; capacity: number; fee: number | string; organizer_name: string; playing_fields: number; match_duration: number; start_time?: string; turnover_minutes?: number; schedule_slot_minutes?: number; has_lunch_break?: boolean; lunch_break_start?: string | null; lunch_break_duration?: number | null; game_system?: GameSystem; format_settings?: { mode?: string; sizes?: number[]; finalMode?: FinalMode } | null; qualifiers_per_group?: number | null; third_place_match?: boolean; tournament_invited_teams?: { team_name: string }[] };
+type TournamentRow = { slug: string; organizer_id?: string; name: string; sport: string; category: string; event_date: string; place: string; country: TournamentCountry; region: string | null; surface: string | null; registered_count: number; capacity: number; fee: number | string; organizer_name: string; playing_fields: number; match_duration: number; start_time?: string; turnover_minutes?: number; schedule_slot_minutes?: number; has_lunch_break?: boolean; lunch_break_start?: string | null; lunch_break_duration?: number | null; game_system?: GameSystem; format_settings?: FormatSettings | null; qualifiers_per_group?: number | null; third_place_match?: boolean; tournament_invited_teams?: { team_name: string }[] };
 export type TournamentRepeatSource = {
   slug: string;
   name: string;
@@ -15,7 +16,7 @@ export type TournamentRepeatSource = {
   country: TournamentCountry;
   region: string | null;
   surface: string | null;
-  formatSettings: { mode: "custom"; sizes: number[]; finalMode: FinalMode } | null;
+  formatSettings: FormatSettings | null;
   preferredFinish: string | null;
   capacity: number;
   playingFields: number;
@@ -40,10 +41,10 @@ function mapTournament(row: TournamentRow, userId?: string): Tournament {
   const registered = Number(row.registered_count);
   return { slug: row.slug, name: row.name, sport: row.sport, category: row.category, date: row.event_date,
     displayDate: date.format(new Date(`${row.event_date}T12:00:00Z`)), city: row.place, country: row.country, region: row.region, surface: row.surface,
-    registered, capacity: Number(row.capacity), participantLabel: "tímov", fee: Number(row.fee),
+    registered, capacity: Number(row.capacity), participantLabel: row.sport === "Tenis" ? (row.format_settings?.tennis?.discipline === "doubles" ? "dvojíc" : "hráčov") : "tímov", fee: Number(row.fee),
     status: registered >= Number(row.capacity) ? "Plná kapacita" : "Otvorená", organizer: row.organizer_name,
     description: `Turnaj ${row.name} v kategórii ${row.category}. Organizátor postupne doplní ďalšie informácie.`,
-    rules: [`Počet hracích plôch: ${row.playing_fields}`, `Dĺžka zápasu: ${row.match_duration} minút`, `Systém hry: ${row.format_settings?.mode === "custom" ? `Vlastné skupiny (${row.format_settings.sizes?.join(" + ") ?? ""})` : gameSystemLabel(row.game_system)}`, ...(row.start_time ? [`Začiatok zápasov: ${row.start_time.slice(0, 5)}`, `Časový blok: ${row.schedule_slot_minutes} minút (prestávka ${row.turnover_minutes} minút)`] : []), ...(row.has_lunch_break ? [`Obedná prestávka: ${row.lunch_break_start?.slice(0, 5)}, ${row.lunch_break_duration} minút`] : [])],
+    rules: row.sport === "Tenis" ? [`Počet kurtov: ${row.playing_fields}`, `Orientačné trvanie zápasu: ${row.match_duration} minút`, `Systém hry: ${row.format_settings?.tennis ? TENNIS_SYSTEMS[row.format_settings.tennis.system] : gameSystemLabel(row.game_system)}`, `Bodovanie: ${TENNIS_SCORING[row.format_settings?.tennis?.scoring ?? "set6"]}`, `Disciplína: ${row.format_settings?.tennis?.discipline === "doubles" ? "Štvorhra" : "Dvojhra"}`, `No-Ad: ${row.format_settings?.tennis?.noAd ? "áno" : "nie"}`, "Časy nástupu na kurt sú orientačné."] : [`Počet hracích plôch: ${row.playing_fields}`, `Dĺžka zápasu: ${row.match_duration} minút`, `Systém hry: ${row.format_settings?.mode === "custom" ? `Vlastné skupiny (${row.format_settings.sizes?.join(" + ") ?? ""})` : gameSystemLabel(row.game_system)}`, ...(row.start_time ? [`Začiatok zápasov: ${row.start_time.slice(0, 5)}`, `Časový blok: ${row.schedule_slot_minutes} minút (prestávka ${row.turnover_minutes} minút)`] : []), ...(row.has_lunch_break ? [`Obedná prestávka: ${row.lunch_break_start?.slice(0, 5)}, ${row.lunch_break_duration} minút`] : [])],
     participants: row.tournament_invited_teams?.map((team) => team.team_name) ?? [],
     isOwned: Boolean(userId && row.organizer_id === userId) };
 }

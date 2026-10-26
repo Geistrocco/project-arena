@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { clubsById } from "@/data/clubs";
 import { createTournamentPlan } from "@/lib/tournament-plan";
+import { createTennisPlan } from "@/lib/tennis-plan";
 import { resolveTournamentFormat } from "@/lib/tournament-format";
 import { createClient } from "@/lib/supabase/server";
 import { isCountry, isRegion, isSurface } from "@/lib/tournament-location";
@@ -29,9 +30,11 @@ export async function updateTournament(formData: FormData) {
   const selectedNames = clubIds.map((id) => clubsById.get(id)?.name).filter((item): item is string => Boolean(item));
   const teamNames = [...new Set([...selectedNames, ...customTeams])];
   if (teamNames.length > capacity) throw new Error("Počet vybraných tímov je vyšší než kapacita turnaja.");
-  const format = resolveTournamentFormat(formData, { teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration });
+  if (sport === "Tenis" && clubIds.length) throw new Error("V tenisovom turnaji zadajte hráčov alebo dvojice, nie futbalové kluby.");
+  const format = resolveTournamentFormat(formData, { sport, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration });
   const { gameSystem, qualifiers, thirdPlace } = format;
-  const plan = { ...createTournamentPlan({ teamNames, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem, groupSizes: format.groupSizes, finalMode: format.finalMode, qualifiersPerGroup: qualifiers ?? undefined, thirdPlaceMatch: thirdPlace }), format_settings: format.formatSettings, preferred_end: format.preferredEnd };
+  const input = { teamNames, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem, groupSizes: format.groupSizes, finalMode: format.finalMode, qualifiersPerGroup: qualifiers ?? undefined, thirdPlaceMatch: thirdPlace };
+  const plan = { ...(format.tennis ? createTennisPlan(input, format.tennis) : createTournamentPlan(input)), format_settings: format.formatSettings, preferred_end: format.preferredEnd };
   const supabase = await createClient(); const { data: auth } = await supabase.auth.getClaims(); if (!auth?.claims?.sub) redirect("/prihlasenie");
   const { error } = await supabase.rpc("update_tournament_with_location", { p_slug: slug, p_name: name, p_sport: sport, p_category: category, p_event_date: date, p_place: place,
     p_country: country, p_region: region, p_surface: surface,
