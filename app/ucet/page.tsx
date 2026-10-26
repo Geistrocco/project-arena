@@ -14,7 +14,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const email = typeof data.claims.email === "string" ? data.claims.email : "";
   const metadata = data.claims.user_metadata as { full_name?: string } | undefined;
   const userId = typeof data.claims.sub === "string" ? data.claims.sub : "";
-  const [{ data: role }, { data: consentEvents }, { data: teams }, { data: claims }, { data: memberships }, { data: teamRequests }, { data: players }, { data: guardianLinks }, { data: guardianInvitations }, { data: teamPlayerInvitations }, { data: managedRoster }, { data: playerTeamLinks }] = await Promise.all([
+  const [{ data: role }, { data: consentEvents }, { data: teams }, { data: claims }, { data: memberships }, { data: teamRequests }, { data: players }, { data: guardianLinks }, { data: guardianInvitations }, { data: teamPlayerInvitations }, { data: managedRoster }, { data: playerTeamLinks }, { data: myTournaments, count: myTournamentCount }] = await Promise.all([
     supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
     supabase.from("marketing_consent_events").select("granted").eq("user_id", userId).order("recorded_at", { ascending: false }).limit(1),
     supabase.from("club_teams").select("id, name, category, season").eq("status", "active").order("name"),
@@ -27,6 +27,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     supabase.from("team_player_invitations").select("id, team_id, invited_email, invited_by, status, expires_at").order("created_at", { ascending: false }),
     supabase.rpc("get_managed_team_roster"),
     supabase.from("team_players").select("player_id, team_id, status").eq("status", "active"),
+    supabase.from("tournaments").select("slug,name,event_date,place", { count: "exact" }).eq("organizer_id", userId).order("event_date", { ascending: false }).limit(3),
   ]);
   const marketingConsent = consentEvents?.[0]?.granted === true;
   const playerById = new Map(players?.map((player) => [player.id, player]));
@@ -53,7 +54,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <p className="mt-3 text-slate-600">Prihlásený účet: {email}</p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link className="btn-primary" href="/vytvorit-turnaj">Vytvoriť turnaj</Link>
+          <Link className="btn-secondary" href="/moje-turnaje">Moje turnaje ({myTournamentCount ?? 0})</Link>
           {role && ["owner", "admin"].includes(role.role) && <Link className="btn-secondary" href="/admin/pouzivatelia">Administrácia</Link>}
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-arena-200 bg-arena-50 p-5" id="moje-turnaje">
+          <div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-extrabold text-ink">Moje turnaje</h2><p className="mt-1 text-sm text-slate-600">Rýchly prístup k turnajom, ktoré organizujete.</p></div><Link className="shrink-0 text-sm font-extrabold text-arena-700 hover:text-arena-600" href="/moje-turnaje">Zobraziť všetky →</Link></div>
+          {(myTournaments?.length ?? 0) > 0 ? <div className="mt-4 space-y-2">{myTournaments?.map((tournament) => <Link className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 text-sm shadow-sm transition hover:ring-2 hover:ring-arena-200" href={`/turnaje/${tournament.slug}`} key={tournament.slug}><span className="font-bold text-ink">{tournament.name}</span><span className="shrink-0 text-slate-500">{date.format(new Date(`${tournament.event_date}T12:00:00Z`))}</span></Link>)}</div> : <p className="mt-4 rounded-xl bg-white px-4 py-4 text-sm text-slate-600">Zatiaľ nemáte vytvorený turnaj.</p>}
         </div>
 
         <div className="mt-8 border-t border-slate-200 pt-6" id="rodina">
