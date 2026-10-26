@@ -23,4 +23,5 @@ export interface Tournament {
   rules: string[];
   participants: string[];
   participantClubIds?: string[];
+  isOwned?: boolean;
 }

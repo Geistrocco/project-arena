@@ -5,7 +5,7 @@ import type { GameSystem } from "@/lib/tournament-schedule";
 import type { TournamentCountry } from "@/lib/tournament-location";
 import type { FinalMode } from "@/lib/tournament-plan";
 
-type TournamentRow = { slug: string; name: string; sport: string; category: string; event_date: string; place: string; country: TournamentCountry; region: string | null; surface: string | null; registered_count: number; capacity: number; fee: number | string; organizer_name: string; playing_fields: number; match_duration: number; start_time?: string; turnover_minutes?: number; schedule_slot_minutes?: number; has_lunch_break?: boolean; lunch_break_start?: string | null; lunch_break_duration?: number | null; game_system?: GameSystem; format_settings?: { mode?: string; sizes?: number[]; finalMode?: FinalMode } | null; qualifiers_per_group?: number | null; third_place_match?: boolean; tournament_invited_teams?: { team_name: string }[] };
+type TournamentRow = { slug: string; organizer_id?: string; name: string; sport: string; category: string; event_date: string; place: string; country: TournamentCountry; region: string | null; surface: string | null; registered_count: number; capacity: number; fee: number | string; organizer_name: string; playing_fields: number; match_duration: number; start_time?: string; turnover_minutes?: number; schedule_slot_minutes?: number; has_lunch_break?: boolean; lunch_break_start?: string | null; lunch_break_duration?: number | null; game_system?: GameSystem; format_settings?: { mode?: string; sizes?: number[]; finalMode?: FinalMode } | null; qualifiers_per_group?: number | null; third_place_match?: boolean; tournament_invited_teams?: { team_name: string }[] };
 export type TournamentRepeatSource = {
   slug: string;
   name: string;
@@ -36,7 +36,7 @@ export type TournamentRepeatSource = {
 export type TournamentEditSource = TournamentRepeatSource & { eventDate: string; hasResults: boolean };
 const date = new Intl.DateTimeFormat("sk-SK", { dateStyle: "long", timeZone: "Europe/Bratislava" });
 
-function mapTournament(row: TournamentRow): Tournament {
+function mapTournament(row: TournamentRow, userId?: string): Tournament {
   const registered = Number(row.registered_count);
   return { slug: row.slug, name: row.name, sport: row.sport, category: row.category, date: row.event_date,
     displayDate: date.format(new Date(`${row.event_date}T12:00:00Z`)), city: row.place, country: row.country, region: row.region, surface: row.surface,
@@ -44,14 +44,32 @@ function mapTournament(row: TournamentRow): Tournament {
     status: registered >= Number(row.capacity) ? "Plná kapacita" : "Otvorená", organizer: row.organizer_name,
     description: `Turnaj ${row.name} v kategórii ${row.category}. Organizátor postupne doplní ďalšie informácie.`,
     rules: [`Počet hracích plôch: ${row.playing_fields}`, `Dĺžka zápasu: ${row.match_duration} minút`, `Systém hry: ${row.format_settings?.mode === "custom" ? `Vlastné skupiny (${row.format_settings.sizes?.join(" + ") ?? ""})` : gameSystemLabel(row.game_system)}`, ...(row.start_time ? [`Začiatok zápasov: ${row.start_time.slice(0, 5)}`, `Časový blok: ${row.schedule_slot_minutes} minút (prestávka ${row.turnover_minutes} minút)`] : []), ...(row.has_lunch_break ? [`Obedná prestávka: ${row.lunch_break_start?.slice(0, 5)}, ${row.lunch_break_duration} minút`] : [])],
-    participants: row.tournament_invited_teams?.map((team) => team.team_name) ?? [] };
+    participants: row.tournament_invited_teams?.map((team) => team.team_name) ?? [],
+    isOwned: Boolean(userId && row.organizer_id === userId) };
 }
 
 export async function getPublicTournaments() {
   const supabase = await createClient();
-  const { data } = await supabase.from("tournaments").select("slug,name,sport,category,event_date,place,country,region,surface,format_settings,registered_count,capacity,fee,organizer_name,playing_fields,match_duration,start_time,turnover_minutes,schedule_slot_minutes,has_lunch_break,lunch_break_start,lunch_break_duration,game_system,qualifiers_per_group,third_place_match").order("event_date");
-  const saved = ((data as TournamentRow[] | null) ?? []).map(mapTournament);
+  const [{ data }, { data: auth }] = await Promise.all([
+    supabase.from("tournaments").select("slug,organizer_id,name,sport,category,event_date,place,country,region,surface,format_settings,registered_count,capacity,fee,organizer_name,playing_fields,match_duration,start_time,turnover_minutes,schedule_slot_minutes,has_lunch_break,lunch_break_start,lunch_break_duration,game_system,qualifiers_per_group,third_place_match").order("event_date"),
+    supabase.auth.getClaims(),
+  ]);
+  const userId = typeof auth?.claims?.sub === "string" ? auth.claims.sub : undefined;
+  const saved = ((data as TournamentRow[] | null) ?? []).map((row) => mapTournament(row, userId));
+  saved.sort((a, b) => Number(b.isOwned) - Number(a.isOwned));
   return [...saved, ...demoTournaments.filter((demo) => !saved.some((item) => item.slug === demo.slug))];
+}
+
+export async function getMyTournaments(): Promise<Tournament[] | null> {
+  const supabase = await createClient();
+  const { data: auth } = await supabase.auth.getClaims();
+  const userId = auth?.claims?.sub;
+  if (typeof userId !== "string") return null;
+  const { data } = await supabase.from("tournaments")
+    .select("slug,organizer_id,name,sport,category,event_date,place,country,region,surface,format_settings,registered_count,capacity,fee,organizer_name,playing_fields,match_duration,start_time,turnover_minutes,schedule_slot_minutes,has_lunch_break,lunch_break_start,lunch_break_duration,game_system,qualifiers_per_group,third_place_match")
+    .eq("organizer_id", userId)
+    .order("event_date", { ascending: false });
+  return ((data as TournamentRow[] | null) ?? []).map((row) => mapTournament(row, userId));
 }
 
 export async function getTournamentBySlug(slug: string) {
