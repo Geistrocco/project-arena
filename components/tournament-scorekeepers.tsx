@@ -6,9 +6,9 @@ import { grantTournamentScorekeeper, revokeTournamentScorekeeper, type Scorekeep
 type Scorekeeper = { id: string; invited_email: string; display_name: string; granted_at: string };
 const initialState: ScorekeeperActionState = {};
 
-export function TournamentScorekeepers({ slug, scorekeepers }: { slug: string; scorekeepers: Scorekeeper[] }) {
+export function TournamentScorekeepers({ slug, scorekeepers, embedded = false }: { slug: string; scorekeepers: Scorekeeper[]; embedded?: boolean }) {
   const [state, action, pending] = useActionState(grantTournamentScorekeeper, initialState);
-  return <section className="mx-auto mt-6 max-w-7xl px-5 lg:px-8">
+  return <section className={embedded ? "" : "mx-auto mt-6 max-w-7xl px-5 lg:px-8"}>
     <div className="rounded-3xl border border-arena-100 bg-white p-6 shadow-card sm:p-8">
       <p className="eyebrow">Administrácia výsledkov</p>
       <h2 className="mt-2 text-2xl font-extrabold">Poverené osoby</h2>

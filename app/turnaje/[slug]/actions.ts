@@ -23,6 +23,7 @@ export async function grantTournamentScorekeeper(_previous: ScorekeeperActionSta
   if (error || !data?.[0]) return { message: "Oprávnenie sa nepodarilo udeliť." };
   const result = data[0];
   revalidatePath(`/turnaje/${slug}`);
+  revalidatePath(`/turnaje/${slug}/administracia`);
   try {
     await sendTournamentScorekeeperNotification({ to: result.assigned_email, fullName: result.assigned_name, tournamentName: result.tournament_name, tournamentSlug: slug, enabled: true, changeId: result.change_id });
     return { success: true, message: "Oprávnenie bolo udelené a e-mail odoslaný." };
@@ -42,6 +43,7 @@ export async function revokeTournamentScorekeeper(formData: FormData) {
   if (error || !data?.[0]) throw new Error("Oprávnenie sa nepodarilo odobrať.");
   const result = data[0];
   revalidatePath(`/turnaje/${slug}`);
+  revalidatePath(`/turnaje/${slug}/administracia`);
   try { await sendTournamentScorekeeperNotification({ to: result.assigned_email, fullName: result.assigned_name, tournamentName: result.tournament_name, tournamentSlug: result.tournament_slug, enabled: false, changeId: result.change_id }); } catch { /* Oprávnenie musí zostať odobraté aj pri výpadku e-mailu. */ }
 }
 
@@ -58,6 +60,7 @@ export async function saveMatchScore(formData: FormData) {
   if (error?.message.includes("Playoff matches need a winner")) throw new Error("Zápas play-off musí mať víťaza. Zadajte konečný výsledok po rozhodnutí zápasu.");
   if (error) throw new Error("Výsledok sa nepodarilo uložiť.");
   revalidatePath(`/turnaje/${slug}`);
+  revalidatePath(`/turnaje/${slug}/administracia`);
 }
 
 export async function swapGroupTeams(formData: FormData) {
@@ -71,6 +74,7 @@ export async function swapGroupTeams(formData: FormData) {
   const { error } = await supabase.rpc("swap_tournament_group_teams", { p_first_id: firstId, p_second_id: secondId });
   if (error) throw new Error("Tímy sa nepodarilo vymeniť.");
   revalidatePath(`/turnaje/${slug}`);
+  revalidatePath(`/turnaje/${slug}/administracia`);
 }
 
 export async function setMatchStream(formData: FormData) {
@@ -96,4 +100,5 @@ export async function setMatchStream(formData: FormData) {
   });
   if (error) throw new Error("Prenos sa nepodarilo uložiť.");
   revalidatePath(`/turnaje/${slug}`);
+  revalidatePath(`/turnaje/${slug}/administracia`);
 }
