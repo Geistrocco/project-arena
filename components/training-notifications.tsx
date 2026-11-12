@@ -22,6 +22,7 @@ export function TrainingNotifications() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(false);
   const [now, setNow] = useState(0);
+  const [cancellation, setCancellation] = useState<{ id: string; reason: string } | null>(null);
   const hidden = useRef(new Set<string>());
   const dialog = useRef<HTMLDialogElement>(null);
   const current = notices[0];
@@ -65,6 +66,15 @@ export function TrainingNotifications() {
     if (!current && dialog.current?.open) dialog.current.close();
   }, [current]);
 
+  useEffect(() => {
+    if (current?.kind !== "cancelled") return;
+    let active = true;
+    void createClient().rpc("get_training_cancellation_reason", { p_id: current.nomination_id }).then(({ data }) => {
+      if (active && typeof data === "string") setCancellation({ id: current.id, reason: data });
+    }, () => { /* Keep the cancellation alert usable if the reason cannot be loaded. */ });
+    return () => { active = false; };
+  }, [current?.id, current?.kind, current?.nomination_id]);
+
   async function dismiss() {
     if (!current || saving) return;
     setSaving(true);
@@ -86,6 +96,7 @@ export function TrainingNotifications() {
       <p className="mt-4 font-bold text-ink">{current.title}</p>
       <p className="mt-2 text-slate-600">{dateTime.format(new Date(current.starts_at))}</p>
       {current.location && <p className="mt-1 text-slate-600">{current.location}</p>}
+      {current.kind === "cancelled" && cancellation?.id === current.id && <p className="mt-4 whitespace-pre-wrap rounded-xl bg-red-50 p-4 text-sm font-bold text-red-800">Dôvod zrušenia: {cancellation.reason}</p>}
       {current.note && <p className="mt-4 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-sm text-slate-700">{current.note}</p>}
       {current.kind === "changed" && <p className="mt-3 text-sm text-slate-500">Toto sú aktuálne údaje tréningu. Skontroluj čas, miesto a pokyny trénera.</p>}
       {error && <p role="alert" className="mt-4 text-sm text-red-700">Potvrdenie sa nepodarilo uložiť. Skús to znova.</p>}
