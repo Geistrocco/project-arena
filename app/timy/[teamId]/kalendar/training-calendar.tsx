@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarIcon, CloseIcon } from "@/components/icons";
 import { createTrainingSeries } from "./actions";
 
@@ -64,6 +64,10 @@ function copyDraft(event: CalendarEvent, date: string): Draft {
 export function TrainingCalendar({ teamId, month, days, events, canManage }: { teamId: string; month: string; days: Array<number | null>; events: CalendarEvent[]; canManage: boolean }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [copySource, setCopySource] = useState<CalendarEvent | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const agendaDialog = useRef<HTMLDialogElement>(null);
+  const selectedEvents = events.filter(event => localDateKey(event.starts_at) === selectedDate)
+    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
   const byDay = useMemo(() => {
     const result = new Map<number, CalendarEvent[]>();
     for (const event of events) {
@@ -80,16 +84,26 @@ export function TrainingCalendar({ teamId, month, days, events, canManage }: { t
     return () => window.removeEventListener("keydown", close);
   }, [draft]);
 
+  useEffect(() => {
+    if (selectedDate && !agendaDialog.current?.open) agendaDialog.current?.showModal();
+    if (!selectedDate && agendaDialog.current?.open) agendaDialog.current.close();
+  }, [selectedDate]);
+
   const chooseDay = (day: number) => {
-    if (!canManage) return;
     const date = `${month}-${String(day).padStart(2, "0")}`;
-    setDraft(copySource ? copyDraft(copySource, date) : emptyDraft(date));
-    setCopySource(null);
+    if (copySource && canManage) {
+      setSelectedDate(null);
+      setDraft(copyDraft(copySource, date));
+      setCopySource(null);
+    } else {
+      setSelectedDate(date);
+    }
   };
 
   const startCopy = (event: CalendarEvent) => {
     setCopySource(event);
     setDraft(null);
+    setSelectedDate(null);
   };
 
   return <>
@@ -97,18 +111,29 @@ export function TrainingCalendar({ teamId, month, days, events, canManage }: { t
 
     <div className="hidden grid-cols-7 gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 md:grid">
       {["Po", "Ut", "St", "Št", "Pi", "So", "Ne"].map((day) => <div className="bg-slate-50 px-3 py-2 text-center text-xs font-extrabold uppercase text-slate-500" key={day}>{day}</div>)}
-      {days.map((day, index) => <div className={`min-h-32 bg-white p-2 ${day && canManage ? "cursor-pointer transition hover:bg-arena-50/60" : ""}`} key={`${month}-${index}`} onClick={() => day && chooseDay(day)} role={day && canManage ? "button" : undefined} tabIndex={day && canManage ? 0 : undefined} onKeyDown={(event) => { if (day && canManage && (event.key === "Enter" || event.key === " ")) chooseDay(day); }}>
-        {day && <><div className="flex items-center justify-between"><p className="text-sm font-extrabold text-slate-500">{day}</p>{canManage && <span className="text-lg font-bold text-arena-600" aria-label="Pridať tréning">+</span>}</div><div className="mt-2 space-y-1.5">{(byDay.get(day) ?? []).map((event) => <div className={`rounded-lg border px-2 py-1.5 text-xs ${eventClasses[event.event_type]}`} key={event.nomination_id} onClick={(click) => click.stopPropagation()}><Link className="block font-bold transition hover:brightness-95" href={`/nominacie/${event.nomination_id}`}><span className="block">{timeFormatter.format(new Date(event.starts_at))} · {eventNames[event.event_type]}</span><span className="mt-0.5 block truncate font-semibold">{event.title}</span></Link>{canManage && event.event_type === "training" && <button className="mt-1.5 font-extrabold underline decoration-current/40 underline-offset-2" onClick={() => startCopy(event)} type="button">Kopírovať</button>}</div>)}</div></>}
+      {days.map((day, index) => <div className="relative min-h-32 bg-white p-2" key={`${month}-${index}`}>
+        {day && <><button aria-label={`Program dňa ${day}. ${month}`} className="absolute inset-0 rounded-sm transition hover:bg-arena-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-arena-600" onClick={() => chooseDay(day)} type="button"/><div className="pointer-events-none relative flex items-center justify-between"><p className="text-sm font-extrabold text-slate-500">{day}</p><span className="text-[0.6rem] font-bold text-arena-700">Program</span></div><div className="pointer-events-none relative mt-2 space-y-1.5">{(byDay.get(day) ?? []).map((event) => <div className={`pointer-events-auto rounded-lg border px-2 py-1.5 text-xs ${eventClasses[event.event_type]}`} key={event.nomination_id}><Link className="block font-bold transition hover:brightness-95" href={`/nominacie/${event.nomination_id}`}><span className="block">{timeFormatter.format(new Date(event.starts_at))} · {eventNames[event.event_type]}</span><span className="mt-0.5 block truncate font-semibold">{event.title}</span></Link>{canManage && event.event_type === "training" && <button className="mt-1.5 font-extrabold underline decoration-current/40 underline-offset-2" onClick={() => startCopy(event)} type="button">Kopírovať</button>}</div>)}</div></>}
       </div>)}
     </div>
 
     <div className="md:hidden">
       <div className="grid grid-cols-7 gap-1">
         {["Po", "Ut", "St", "Št", "Pi", "So", "Ne"].map((day) => <div className="py-1 text-center text-[0.65rem] font-black uppercase text-slate-400" key={day}>{day}</div>)}
-        {days.map((day, index) => <button className={`relative aspect-square rounded-xl border text-sm font-extrabold ${day ? "border-slate-200 bg-white text-ink" : "border-transparent"} ${day && canManage ? "active:bg-arena-100" : ""}`} disabled={!day || !canManage} key={`${month}-mobile-${index}`} onClick={() => day && chooseDay(day)} type="button">{day}{day && (byDay.get(day)?.length ?? 0) > 0 && <span className="absolute bottom-1.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-arena-500" />}</button>)}
+        {days.map((day, index) => <button aria-label={day ? `Program dňa ${day}. ${month}` : undefined} className={`relative aspect-square rounded-xl border text-sm font-extrabold ${day ? "border-slate-200 bg-white text-ink active:bg-arena-100" : "border-transparent"}`} disabled={!day} key={`${month}-mobile-${index}`} onClick={() => day && chooseDay(day)} type="button">{day}{day && (byDay.get(day)?.length ?? 0) > 0 && <span className="absolute bottom-1.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-arena-500" />}</button>)}
       </div>
       <div className="mt-5 space-y-3">{events.map((event) => <div className="rounded-2xl border border-slate-200 p-4" key={event.nomination_id}><Link className="block" href={`/nominacie/${event.nomination_id}`}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-extrabold uppercase tracking-wide text-arena-700">{eventNames[event.event_type]}</p><p className="mt-1 font-extrabold text-ink">{event.title}</p><p className="mt-1 text-sm text-slate-600">{dateTimeFormatter.format(new Date(event.starts_at))}{event.location ? ` · ${event.location}` : ""}</p></div><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${eventClasses[event.event_type]}`}>Detail</span></div></Link>{canManage && event.event_type === "training" && <button className="mt-3 text-sm font-extrabold text-arena-700" onClick={() => startCopy(event)} type="button">Kopírovať na iný deň →</button>}</div>)}{events.length === 0 && <p className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-600">V tomto mesiaci zatiaľ nie je žiadna udalosť.</p>}</div>
     </div>
+
+    <dialog ref={agendaDialog} aria-labelledby="day-agenda-title" className="m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl backdrop:bg-ink/55 sm:p-7" onCancel={() => setSelectedDate(null)} onClick={event => { if (event.target === event.currentTarget) { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setSelectedDate(null); } }}>
+      {selectedDate && <>
+        <div className="flex items-start justify-between gap-4"><div><p className="eyebrow">Program dňa</p><h3 id="day-agenda-title" className="mt-2 text-2xl font-extrabold text-ink">{new Date(`${selectedDate}T12:00:00Z`).toLocaleDateString("sk-SK", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}</h3></div><button autoFocus aria-label="Zavrieť program dňa" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 text-slate-600" onClick={() => setSelectedDate(null)} type="button"><CloseIcon className="h-5 w-5" /></button></div>
+        <div className="mt-6 space-y-3">{selectedEvents.length ? selectedEvents.map(event => <div className={`rounded-2xl border p-4 ${eventClasses[event.event_type]}`} key={event.nomination_id}>
+          <Link className="block rounded-lg focus-visible:outline focus-visible:outline-2" href={`/nominacie/${event.nomination_id}`} onClick={() => setSelectedDate(null)}><p className="text-xs font-extrabold uppercase tracking-wide">{timeFormatter.format(new Date(event.starts_at))}{event.ends_at ? ` – ${timeFormatter.format(new Date(event.ends_at))}` : ""} · {eventNames[event.event_type]}</p><p className="mt-1 text-lg font-extrabold">{event.title}</p>{event.location && <p className="mt-2 text-sm">{event.location}</p>}<p className="mt-3 text-sm font-extrabold">Detail a účasť →</p></Link>
+          {canManage && event.event_type === "training" && <button className="mt-3 text-sm font-extrabold underline underline-offset-4" onClick={() => startCopy(event)} type="button">Kopírovať na iný deň</button>}
+        </div>) : <p className="rounded-2xl border border-dashed border-slate-300 p-6 text-center text-slate-600">Na tento deň nie je nič naplánované.</p>}</div>
+        {canManage && <div className="mt-6 border-t border-slate-100 pt-5"><button className="btn-primary w-full justify-center" onClick={() => { setDraft(emptyDraft(selectedDate)); setSelectedDate(null); }} type="button">+ Pridať udalosť</button><p className="mt-3 text-center text-xs text-slate-500">Otvorí nový tréning. <Link className="font-bold text-arena-700 underline" href={`/timy/${teamId}/nominacie#nova-nominacia`} onClick={() => setSelectedDate(null)}>Zápas alebo turnaj pridáš cez nominácie.</Link></p></div>}
+      </>}
+    </dialog>
 
     {draft && <div aria-modal="true" className="fixed inset-0 z-50 flex items-end justify-center bg-ink/55 p-0 backdrop-blur-sm sm:items-center sm:p-5" role="dialog" onMouseDown={(event) => { if (event.target === event.currentTarget) setDraft(null); }}>
       <div className="max-h-[94vh] w-full overflow-y-auto rounded-t-[2rem] bg-white p-5 shadow-2xl sm:max-w-2xl sm:rounded-[2rem] sm:p-7">

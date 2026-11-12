@@ -102,7 +102,7 @@ export default async function TeamCalendarPage({
     <Link className="text-sm font-bold text-arena-700" href={`/timy/${teamId}/prehlad`}>← Späť na prehľad tímu</Link>
     <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div><p className="eyebrow">{team.name}</p><h1 className="mt-2 text-3xl font-extrabold text-ink">Tímový kalendár</h1><p className="mt-2 text-slate-600">{team.category} · sezóna {team.season}</p></div>
-      {canManage && <p className="rounded-xl bg-arena-50 px-4 py-3 text-sm font-bold text-arena-800">Klikni na deň a pridaj tréning</p>}
+      <p className="rounded-xl bg-arena-50 px-4 py-3 text-sm font-bold text-arena-800">Klikni na deň a pozri si jeho program</p>
     </div>
 
     {query.stav === "trening-vytvoreny" && <p className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 font-bold text-emerald-800">Tréning bol pridaný do kalendára. Rodičia už môžu potvrdiť účasť.</p>}
@@ -114,7 +114,7 @@ export default async function TeamCalendarPage({
         <Link aria-label="Nasledujúci mesiac" className="btn-secondary px-4" href={`?mesiac=${shiftMonth(month, 1)}`}>→</Link>
       </div>
 
-      <div className="mt-5"><TrainingCalendar canManage={canManage} days={days} events={events} month={month} teamId={teamId}/></div>
+      <div className="mt-5"><TrainingCalendar key={month} canManage={canManage} days={days} events={events} month={month} teamId={teamId}/></div>
     </div>
 
     {canManage && <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" id="statistiky"><div><p className="eyebrow">Sezóna {team.season}</p><h2 className="mt-2 text-2xl font-extrabold text-ink">Dochádzka na tréningy</h2><p className="mt-2 text-sm text-slate-600">Štatistika počíta iba uskutočnené tréningy, pri ktorých bola dochádzka zaznamenaná trénerom.</p></div><div className="mt-5 overflow-x-auto"><table className="w-full min-w-[620px] text-left text-sm"><thead><tr className="border-b text-xs uppercase tracking-wide text-slate-500"><th className="px-3 py-3">Hráč</th><th className="px-3 py-3 text-center">Tréningy</th><th className="px-3 py-3 text-center">Bol</th><th className="px-3 py-3 text-center">Chýbal</th><th className="px-3 py-3 text-center">Nezadané</th><th className="px-3 py-3 text-right">Účasť</th></tr></thead><tbody className="divide-y divide-slate-100">{stats.map((stat) => <tr className={stat.player_status === "inactive" ? "text-slate-400" : "text-slate-700"} key={stat.player_id}><td className="px-3 py-3 font-bold">{stat.player_name}{stat.player_status === "inactive" && <span className="ml-2 text-xs font-normal">neaktívny</span>}</td><td className="px-3 py-3 text-center">{stat.training_count}</td><td className="px-3 py-3 text-center font-bold text-emerald-700">{stat.present_count}</td><td className="px-3 py-3 text-center font-bold text-red-700">{stat.absent_count}</td><td className="px-3 py-3 text-center text-slate-500">{stat.unrecorded_count}</td><td className="px-3 py-3 text-right font-extrabold text-ink">{stat.attendance_rate === null ? "—" : `${stat.attendance_rate} %`}</td></tr>)}</tbody></table>{stats.length === 0 && <p className="py-8 text-center text-slate-600">Tím zatiaľ nemá hráčov alebo evidovanú dochádzku.</p>}</div></div>}
