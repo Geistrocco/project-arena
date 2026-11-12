@@ -5,10 +5,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#17201b",
-        arena: { 50: "#effcf3", 100: "#d8f7e2", 500: "#24a85a", 600: "#168a46", 700: "#116c38" },
+        ink: "#142018",
+        arena: { 50: "#f0fcef", 100: "#dcf8d9", 200: "#bdf2b7", 300: "#91e88c", 500: "#5bd75f", 600: "#2eaa45", 700: "#187532" },
       },
-      boxShadow: { card: "0 12px 35px rgba(23, 32, 27, 0.07)" },
+      boxShadow: { card: "0 16px 45px rgba(20, 32, 24, 0.08)" },
+      fontFamily: { display: ["Arial Narrow", "Roboto Condensed", "Arial", "sans-serif"] },
     },
   },
   plugins: [],

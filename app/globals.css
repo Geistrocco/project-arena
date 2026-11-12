@@ -1,5 +1,42 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@layer base { * { @apply border-slate-200; } html { scroll-behavior: smooth; } body { @apply bg-[#f7f9f7] text-ink antialiased; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { @apply ring-2 ring-arena-500 ring-offset-2 outline-none; } }
-@layer components { .nav-link { @apply text-sm font-semibold text-slate-600 transition hover:text-arena-700; } .mobile-link { @apply rounded-xl px-3 py-3 font-semibold text-slate-700 hover:bg-slate-50; } .btn-primary { @apply inline-flex min-h-12 items-center rounded-xl bg-arena-600 px-6 text-sm font-bold text-white shadow-sm transition hover:bg-arena-700 disabled:cursor-not-allowed disabled:bg-slate-300; } .btn-secondary { @apply inline-flex min-h-11 items-center rounded-xl border bg-white px-5 text-sm font-bold transition hover:bg-slate-50; } .field { @apply h-12 w-full rounded-xl border bg-white px-4 text-sm transition placeholder:text-slate-400 hover:border-slate-300 focus:border-arena-500 focus:ring-2 focus:ring-arena-100 outline-none; } select.field { @apply cursor-pointer; } textarea.field { @apply h-auto py-3; } .label { @apply mb-2 block text-sm font-bold text-slate-700; } .eyebrow { @apply text-xs font-extrabold uppercase tracking-[0.18em] text-arena-600; } .sport-pill { @apply rounded-full bg-arena-50 px-3 py-1.5 text-xs font-extrabold uppercase tracking-wide text-arena-700; } .status-open { @apply inline-flex items-center gap-1.5 rounded-full bg-arena-50 px-2.5 py-1.5 text-xs font-bold text-arena-700; } .status-warning { @apply inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-700; } .status-full { @apply inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-600; } .detail-row { @apply flex items-center gap-3; } .detail-row svg { @apply h-[18px] w-[18px] shrink-0 text-slate-400; } .icon-button { @apply grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200; } }
+
+@layer base {
+  * { @apply border-slate-200; }
+  html { scroll-behavior: smooth; }
+  body { @apply bg-[#f6f8f3] text-ink antialiased; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+  button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { @apply outline-none ring-2 ring-arena-500 ring-offset-2; }
+}
+
+@layer components {
+  .display-title { @apply font-display font-black uppercase tracking-[-0.065em] text-ink; font-stretch: condensed; }
+  .display-heading { @apply font-display font-black uppercase tracking-[-0.035em] text-ink; font-stretch: condensed; }
+  .hero-shell { @apply relative overflow-hidden border-b border-ink/10 bg-[#eef5e9]; }
+  .hero-grid { position: absolute; inset: 0; opacity: .28; background-image: linear-gradient(rgba(20,32,24,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(20,32,24,.08) 1px, transparent 1px); background-size: 56px 56px; mask-image: linear-gradient(to bottom right, black, transparent 72%); }
+  .nav-link { @apply text-sm font-bold text-slate-600 transition hover:text-ink; }
+  .mobile-link { @apply rounded-xl px-3 py-3 font-semibold text-slate-700 hover:bg-slate-50; }
+  .btn-primary { @apply inline-flex min-h-12 items-center rounded-xl bg-arena-500 px-6 text-sm font-black text-ink shadow-[0_8px_24px_rgba(91,215,95,0.2)] transition hover:-translate-y-0.5 hover:bg-arena-300 disabled:cursor-not-allowed disabled:bg-slate-300; }
+  .btn-secondary { @apply inline-flex min-h-12 items-center rounded-xl border border-ink/15 bg-white px-6 text-sm font-black text-ink transition hover:-translate-y-0.5 hover:border-ink/30 hover:bg-white; }
+  .field { @apply h-12 w-full rounded-xl border border-ink/10 bg-white px-4 text-sm font-semibold text-ink outline-none transition placeholder:font-normal placeholder:text-slate-400 hover:border-ink/25 focus:border-arena-600 focus:ring-2 focus:ring-arena-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400; }
+  select.field { @apply cursor-pointer; }
+  textarea.field { @apply h-auto py-3; }
+  .label { @apply mb-2 block text-sm font-bold text-slate-700; }
+  .eyebrow { @apply text-[0.7rem] font-black uppercase tracking-[0.2em] text-arena-700; }
+  .catalog-filters { @apply rounded-[1.75rem] border border-ink/10 bg-[#fbfcf8] p-4 shadow-card md:p-5; }
+  .tournament-card { @apply flex h-full flex-col overflow-hidden rounded-[1.75rem] border border-ink/10 bg-white shadow-card transition duration-300 hover:-translate-y-1 hover:border-arena-500/60 hover:shadow-[0_22px_55px_rgba(20,32,24,0.13)]; }
+  .tournament-card.is-owned { @apply border-arena-500 ring-2 ring-arena-100; }
+  .sport-pill { @apply rounded-full border border-ink/10 bg-white/80 px-3 py-1.5 text-[0.65rem] font-black uppercase tracking-[0.12em] text-ink backdrop-blur; }
+  .owned-pill { @apply rounded-full bg-ink px-3 py-1.5 text-[0.65rem] font-black uppercase tracking-[0.1em] text-white; }
+  .status-open { @apply inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-1.5 text-[0.65rem] font-black uppercase tracking-wide text-arena-700 backdrop-blur; }
+  .status-warning { @apply inline-flex items-center gap-1.5 rounded-full bg-amber-50/90 px-2.5 py-1.5 text-[0.65rem] font-black uppercase tracking-wide text-amber-700; }
+  .status-full { @apply inline-flex items-center gap-1.5 rounded-full bg-white/80 px-2.5 py-1.5 text-[0.65rem] font-black uppercase tracking-wide text-slate-600; }
+  .detail-row { @apply flex items-center gap-3; }
+  .detail-row svg { @apply h-[18px] w-[18px] shrink-0 text-arena-700; }
+  .card-link { @apply inline-flex min-h-10 items-center gap-2 rounded-xl bg-ink px-4 text-sm font-black text-white transition hover:bg-arena-700; }
+  .icon-button { @apply grid h-10 w-10 place-items-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}
