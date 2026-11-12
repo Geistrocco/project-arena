@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
+import { TrainingNotifications } from "@/components/training-notifications";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -16,4 +17,4 @@ export const metadata: Metadata = {
     type: "website",
   },
 };
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="sk"><body><Header/><main>{children}</main><Footer/></body></html>; }
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="sk"><body><Header/><main>{children}</main><Footer/><TrainingNotifications/></body></html>; }
