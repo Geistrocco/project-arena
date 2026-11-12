@@ -6,12 +6,19 @@ import { createClient } from "@/lib/supabase/server";
 
 const uuid = /^[0-9a-f-]{36}$/i;
 const localDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const localDate = /^\d{4}-\d{2}-\d{2}$/;
+const localTime = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export async function createTrainingSeries(formData: FormData) {
   const teamId = String(formData.get("teamId") ?? "");
   const title = String(formData.get("title") ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
-  const startsAt = String(formData.get("startsAt") ?? "");
-  const endsAt = String(formData.get("endsAt") ?? "");
+  const date = String(formData.get("date") ?? "");
+  const startTime = String(formData.get("startTime") ?? "");
+  const endTime = String(formData.get("endTime") ?? "");
+  const legacyStartsAt = String(formData.get("startsAt") ?? "");
+  const legacyEndsAt = String(formData.get("endsAt") ?? "");
+  const startsAt = localDate.test(date) && localTime.test(startTime) ? `${date}T${startTime}` : legacyStartsAt;
+  const endsAt = localDate.test(date) && localTime.test(endTime) ? `${date}T${endTime}` : legacyEndsAt;
   const location = String(formData.get("location") ?? "").trim().slice(0, 160);
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
   const repeatWeeks = Number.parseInt(String(formData.get("repeatWeeks") ?? "1"), 10);
