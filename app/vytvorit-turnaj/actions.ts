@@ -1,5 +1,7 @@
 "use server";
 
+import { getAccountContext } from "@/lib/account-context";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -12,6 +14,8 @@ const types: Record<string, string> = { "Verejný": "public", "Pozvánkový": "i
 const visibilities: Record<string, string> = { "Zobrazovať všetkým": "all", "Iba prijatým tímom": "accepted", "Nezobrazovať": "hidden" };
 
 export async function createTournament(formData: FormData) {
+  const { user, mode } = await getAccountContext();
+  if (user && mode !== "coach") redirect("/ucet#nastavenia-uctu");
   const text = (name: string, max: number) => String(formData.get(name) ?? "").trim().replace(/\s+/g, " ").slice(0, max);
   const number = (name: string) => Number(formData.get(name));
   const name = text("name", 140); const sport = text("sport", 40); const category = text("category", 30).toUpperCase();

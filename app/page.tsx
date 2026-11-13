@@ -1,9 +1,12 @@
+import { getAccountContext } from "@/lib/account-context";
 import Link from "next/link";
 import { ArrowIcon, CheckIcon, SearchIcon, TrophyIcon } from "@/components/icons";
 import { TournamentCatalog } from "@/components/tournament-catalog";
 import { getPublicTournaments } from "@/lib/tournaments";
 
 export default async function Home() {
+  const { user, mode } = await getAccountContext();
+  const organizerView = !user || mode === "coach";
   const tournaments = await getPublicTournaments();
   const sports = ["Všetky športy", ...Array.from(new Set(tournaments.map((item) => item.sport)))];
   const cities = new Set(tournaments.map((item) => item.city)).size;
@@ -26,8 +29,8 @@ export default async function Home() {
               <Link href="#turnaje" className="btn-primary justify-center">
                 <SearchIcon className="mr-2 h-4 w-4" /> Nájsť turnaj
               </Link>
-              <Link href="/vytvorit-turnaj" className="btn-secondary justify-center">
-                Vytvoriť turnaj <ArrowIcon className="ml-2 h-4 w-4" />
+              <Link href={organizerView ? "/vytvorit-turnaj" : "/moj-tim"} className="btn-secondary justify-center">
+                {organizerView ? "Vytvoriť turnaj" : "Moje tímy"} <ArrowIcon className="ml-2 h-4 w-4" />
               </Link>
             </div>
             <dl className="mt-11 grid max-w-2xl grid-cols-3 border-y border-ink/10 py-5">
@@ -66,12 +69,12 @@ export default async function Home() {
       <section className="px-5 pb-20 lg:px-8">
         <div className="mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-ink px-6 py-10 text-white sm:px-10 lg:flex lg:items-center lg:justify-between lg:gap-12 lg:px-14 lg:py-12">
           <div>
-            <p className="eyebrow text-arena-300">Pre organizátorov</p>
-            <h2 className="display-heading mt-3 text-4xl text-white sm:text-5xl">Vytvor turnaj, nie tabuľkový chaos.</h2>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">Tournio pripraví skupiny, harmonogram aj priebežné tabuľky. Ty zostávaš organizátorom a rozhoduješ o konečnom nastavení.</p>
+            <p className="eyebrow text-arena-300">{organizerView ? "Pre organizátorov" : "Pre rodičov a hráčov"}</p>
+            <h2 className="display-heading mt-3 text-4xl text-white sm:text-5xl">{organizerView ? "Vytvor turnaj, nie tabuľkový chaos." : "Program tvojich detí na jednom mieste."}</h2>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">{organizerView ? "Tournio pripraví skupiny, harmonogram aj priebežné tabuľky. Ty zostávaš organizátorom a rozhoduješ o konečnom nastavení." : "Pozri si tréningy a potvrď účasť svojich detí pre celý týždeň."}</p>
           </div>
-          <Link href="/vytvorit-turnaj" className="btn-primary mt-8 shrink-0 justify-center lg:mt-0">
-            Vytvoriť turnaj <ArrowIcon className="ml-2 h-4 w-4" />
+          <Link href={organizerView ? "/vytvorit-turnaj" : "/treningy"} className="btn-primary mt-8 shrink-0 justify-center lg:mt-0">
+            {organizerView ? "Vytvoriť turnaj" : "Tréningy mojich detí"} <ArrowIcon className="ml-2 h-4 w-4" />
           </Link>
         </div>
       </section>

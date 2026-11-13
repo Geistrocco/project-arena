@@ -1,5 +1,6 @@
 "use server";
 
+import { getAccountContext } from "@/lib/account-context";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -142,6 +143,8 @@ export async function setMarketingConsent(formData: FormData) {
 }
 
 export async function requestTeamAccess(formData: FormData) {
+  const { mode } = await getAccountContext();
+  if (mode !== "coach") redirect("/ucet#nastavenia-uctu");
   const teamId = String(formData.get("teamId") ?? "");
   const requestedRole = String(formData.get("requestedRole") ?? "");
   const phone = String(formData.get("phone") ?? "").trim().slice(0, 30);
@@ -170,6 +173,8 @@ export async function requestTeamAccess(formData: FormData) {
 }
 
 export async function requestNewTeam(formData: FormData) {
+  const { mode } = await getAccountContext();
+  if (mode !== "coach") redirect("/ucet#nastavenia-uctu");
   const clubName = String(formData.get("clubName") ?? "").trim().slice(0, 160);
   const city = String(formData.get("city") ?? "").trim().slice(0, 100);
   const category = String(formData.get("category") ?? "").trim().toUpperCase().slice(0, 30);
@@ -197,4 +202,14 @@ export async function requestNewTeam(formData: FormData) {
   if (insertError) throw new Error("Žiadosť sa nepodarilo odoslať.");
   revalidatePath("/ucet");
   revalidatePath("/admin/timy");
+}
+
+export async function setAccountMode(formData: FormData) {
+  const mode = String(formData.get("accountMode") ?? "");
+  if (mode !== "parent" && mode !== "coach") throw new Error("Vyberte typ účtu.");
+  const { supabase } = await requireUser();
+  const { error } = await supabase.auth.updateUser({ data: { account_mode: mode } });
+  if (error) throw new Error("Typ účtu sa nepodarilo uložiť.");
+  revalidatePath("/", "layout");
+  redirect("/ucet?stav=typ-uctu-ulozeny");
 }

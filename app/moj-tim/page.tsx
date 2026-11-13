@@ -1,3 +1,4 @@
+import { getAccountContext } from "@/lib/account-context";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowIcon, UsersIcon } from "@/components/icons";
@@ -8,6 +9,7 @@ const staffRoleNames = { coach: "Tréner", manager: "Vedúci tímu", club_admin:
 export const metadata = { title: "Môj tím" };
 
 export default async function MyTeamPage() {
+  const { mode } = await getAccountContext();
   const { userId, teams } = await getMyTeams();
   if (!userId) redirect("/prihlasenie");
   if (teams.length === 1) redirect(`/timy/${teams[0].id}/prehlad`);
@@ -21,6 +23,6 @@ export default async function MyTeamPage() {
       <span className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-arena-700">Otvoriť tím <ArrowIcon className="h-4 w-4 transition group-hover:translate-x-1" /></span>
     </Link>)}</div>}
 
-    {teams.length === 0 && <div className="mt-8 rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center sm:p-12"><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-arena-50 text-arena-700"><UsersIcon className="h-7 w-7" /></span><h2 className="mt-5 text-xl font-extrabold text-ink">Zatiaľ tu nemáte žiadny tím</h2><p className="mx-auto mt-2 max-w-lg text-slate-600">Rodič tu uvidí tím po prijatí hráča. Tréner alebo vedúci môže požiadať o správu existujúceho tímu.</p><Link className="btn-primary mt-6" href="/ucet#klubovy-tim">Pridať alebo nájsť tím</Link></div>}
+    {teams.length === 0 && <div className="mt-8 rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center sm:p-12"><span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-arena-50 text-arena-700"><UsersIcon className="h-7 w-7" /></span><h2 className="mt-5 text-xl font-extrabold text-ink">Zatiaľ tu nemáte žiadny tím</h2><p className="mx-auto mt-2 max-w-lg text-slate-600">{mode === "coach" ? "Tu uvidíš tímy svojich detí aj tímy, ktoré spravuješ. O správu existujúceho tímu môžeš požiadať v účte." : "Tím svojho dieťaťa tu uvidíš po prijatí hráča do tímu. Profil dieťaťa môžeš pridať vo svojom účte."}</p><Link className="btn-primary mt-6" href={mode === "coach" ? "/ucet#klubovy-tim" : "/ucet#rodina"}>{mode === "coach" ? "Pridať alebo nájsť tím" : "Moje deti a hráči"}</Link></div>}
   </section>;
 }

@@ -1,3 +1,4 @@
+import { getAccountContext } from "@/lib/account-context";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { TournamentCard } from "@/components/tournament-card";
@@ -6,6 +7,8 @@ import { getMyTournaments } from "@/lib/tournaments";
 export const metadata = { title: "Moje turnaje" };
 
 export default async function MyTournamentsPage() {
+  const { user, mode } = await getAccountContext();
+  if (user && mode !== "coach") redirect("/ucet#nastavenia-uctu");
   const tournaments = await getMyTournaments();
   if (!tournaments) redirect("/prihlasenie?dovod=turnaje");
 
