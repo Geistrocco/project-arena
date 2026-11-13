@@ -11,16 +11,28 @@ export async function createNomination(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim().replace(/\s+/g, " ").slice(0, 120);
   const eventType = String(formData.get("eventType") ?? "");
   const startsAt = String(formData.get("startsAt") ?? "");
+  const endsAt = String(formData.get("endsAt") ?? "");
   const location = String(formData.get("location") ?? "").trim().slice(0, 160);
   const note = String(formData.get("note") ?? "").trim().slice(0, 1000);
   const playerIds = formData.getAll("playerIds").map(String).filter((id) => uuid.test(id));
   if (!uuid.test(teamId) || title.length < 3 || !["match", "tournament", "training", "other"].includes(eventType)) throw new Error("Skontrolujte údaje nominácie.");
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(startsAt)) throw new Error("Zadajte dátum a čas udalosti.");
-  if (playerIds.length === 0) throw new Error("Vyberte aspoň jedného hráča.");
+  if (eventType !== "training" && playerIds.length === 0) throw new Error("Vyberte aspoň jedného hráča.");
 
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getClaims();
   if (!auth?.claims?.sub) redirect("/prihlasenie");
+  if (eventType === "training") {
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(endsAt)) throw new Error("Zadajte aj koniec tréningu.");
+    const { data: ids, error } = await supabase.rpc("create_team_training_series", {
+      p_team_id: teamId, p_title: title, p_starts_at: startsAt, p_ends_at: endsAt,
+      p_location: location, p_note: note, p_repeat_weeks: 1,
+    });
+    if (error || !ids?.length) throw new Error("Tréning sa nepodarilo vytvoriť. Skontrolujte čas začiatku a konca.");
+    revalidatePath(`/timy/${teamId}/nominacie`);
+    revalidatePath(`/timy/${teamId}/kalendar`);
+    redirect(`/nominacie/${ids[0]}?stav=vytvorena`);
+  }
   const { data: nominationId, error } = await supabase.rpc("create_team_nomination", {
     p_team_id: teamId, p_title: title, p_event_type: eventType, p_starts_at: startsAt,
     p_location: location, p_note: note, p_player_ids: playerIds,
@@ -57,7 +69,7 @@ export async function recordTrainingAttendance(formData: FormData) {
   const teamId = String(formData.get("teamId") ?? "");
   const playerId = String(formData.get("playerId") ?? "");
   const attendanceStatus = String(formData.get("attendanceStatus") ?? "");
-  if (![nominationId, teamId, playerId].every((id) => uuid.test(id)) || !["present", "absent", "unmarked"].includes(attendanceStatus)) {
+  if (![nominationId, teamId, playerId].every((id) => uuid.test(id)) || !["present", "absent", "excused", "unexcused", "unmarked"].includes(attendanceStatus)) {
     throw new Error("Neplatný záznam dochádzky.");
   }
 

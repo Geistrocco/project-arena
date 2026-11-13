@@ -99,3 +99,17 @@ export async function manageTraining(_previous: TrainingManagementState, formDat
   revalidatePath("/moj-tim");
   redirect(`/nominacie/${id}?stav=${operation === "cancel" ? "trening-zruseny" : "trening-upraveny"}&pocet=${Number(data) || 1}`);
 }
+
+export async function saveTrainingPublication(formData: FormData) {
+  const teamId = String(formData.get("teamId") ?? "");
+  const weekday = Number(formData.get("weekday"));
+  const time = String(formData.get("publishTime") ?? "");
+  const month = String(formData.get("month") ?? "");
+  if (!uuid.test(teamId) || !Number.isInteger(weekday) || weekday < 1 || weekday > 7 || !localTime.test(time)) throw new Error("Skontroluj deň a čas zverejnenia.");
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("save_training_publication_settings", { p_team_id: teamId, p_weekday: weekday, p_time: time });
+  if (error) throw new Error("Nastavenie zverejňovania sa nepodarilo uložiť.");
+  revalidatePath(`/timy/${teamId}/kalendar`);
+  revalidatePath("/nominacie/[nominationId]", "page");
+  redirect(`/timy/${teamId}/kalendar?stav=zverejnovanie-ulozene${/^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? `&mesiac=${month}` : ""}`);
+}
