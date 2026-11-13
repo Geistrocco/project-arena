@@ -25,6 +25,12 @@ export default async function TeamNominationsPage({ params }: { params: Promise<
   if (!team) notFound();
   if (error) redirect(`/timy/${teamId}`);
   const nominations = (data as Nomination[] | null) ?? [];
+  const now = new Date().getTime();
+  const upcoming = nominations.filter((item) => new Date(item.starts_at).getTime() >= now)
+    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at) || a.nomination_id.localeCompare(b.nomination_id));
+  const past = nominations.filter((item) => new Date(item.starts_at).getTime() < now)
+    .sort((a, b) => Date.parse(b.starts_at) - Date.parse(a.starts_at) || a.nomination_id.localeCompare(b.nomination_id));
+  const renderNomination = (item: Nomination) => <Link className="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-arena-300 hover:shadow-md" href={`/nominacie/${item.nomination_id}`} key={item.nomination_id}><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-extrabold uppercase tracking-wider text-arena-700">{eventNames[item.event_type] ?? "Udalosť"}</p><h3 className="mt-1 text-lg font-extrabold text-ink">{item.title}</h3><p className="mt-1 text-sm text-slate-600">{dateTime.format(new Date(item.starts_at))}{item.location ? ` · ${item.location}` : ""}</p></div><span className={item.status === "cancelled" ? "rounded-full bg-red-100 px-3 py-1 text-xs font-extrabold text-red-800" : "status-open"}>{item.status === "open" ? "Otvorená" : item.status === "cancelled" ? "Zrušená" : item.status === "closed" ? "Uzavretá" : item.status}</span></div><div className="mt-4 flex flex-wrap gap-2 text-sm font-bold"><span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">Potvrdení: {item.accepted_count}</span><span className="rounded-full bg-red-50 px-3 py-1 text-red-700">Neprídu: {item.declined_count}</span><span className="rounded-full bg-amber-50 px-3 py-1 text-amber-800">Čaká: {item.pending_count}</span></div></Link>;
   const canManage = Boolean(membership && ["coach", "manager", "club_admin"].includes(membership.role)) || Boolean(role && ["owner", "admin"].includes(role.role));
   let players: Player[] = [];
   if (canManage) {
@@ -42,6 +48,15 @@ export default async function TeamNominationsPage({ params }: { params: Promise<
         <SubmitNominationButton disabled={players.length === 0}/></form>
     </details>}
 
-    <div className="mt-8 space-y-4">{nominations.map((item) => <Link className="block rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-arena-300 hover:shadow-md" href={`/nominacie/${item.nomination_id}`} key={item.nomination_id}><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-extrabold uppercase tracking-wider text-arena-700">{eventNames[item.event_type] ?? "Udalosť"}</p><h2 className="mt-1 text-lg font-extrabold text-ink">{item.title}</h2><p className="mt-1 text-sm text-slate-600">{dateTime.format(new Date(item.starts_at))}{item.location ? ` · ${item.location}` : ""}</p></div><span className="status-open">{item.status === "open" ? "Otvorená" : item.status}</span></div><div className="mt-4 flex flex-wrap gap-2 text-sm font-bold"><span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">Potvrdení: {item.accepted_count}</span><span className="rounded-full bg-red-50 px-3 py-1 text-red-700">Neprídu: {item.declined_count}</span><span className="rounded-full bg-amber-50 px-3 py-1 text-amber-800">Čaká: {item.pending_count}</span></div></Link>)}{nominations.length === 0 && <p className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-600">Zatiaľ nebola vytvorená žiadna nominácia.</p>}</div>
+    <div className="mt-8 space-y-6">
+      <section aria-labelledby="nadchadzajuce-nominacie">
+        <h2 className="text-xl font-extrabold text-ink" id="nadchadzajuce-nominacie">Nadchádzajúce</h2>
+        <div className="mt-4 space-y-4">{upcoming.map(renderNomination)}{upcoming.length === 0 && <p className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-600">Žiadne nadchádzajúce udalosti.</p>}</div>
+      </section>
+      {past.length > 0 && <details className="rounded-2xl border border-slate-200 p-5">
+        <summary className="cursor-pointer text-xl font-extrabold text-ink">História ({past.length})</summary>
+        <div className="mt-4 space-y-4">{past.map(renderNomination)}</div>
+      </details>}
+    </div>
   </section>;
 }
