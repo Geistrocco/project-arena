@@ -9,17 +9,12 @@ function load(relative,stubs={}) {
 }
 async function main(){
  const helpers=load('lib/training-attendance.ts');
- assert.equal(helpers.trainingResponseOpen('2026-03-30T15:00:00Z',new Date('2026-03-28T22:59:59Z')),false);
- assert.equal(helpers.trainingResponseOpen('2026-03-30T15:00:00Z',new Date('2026-03-28T23:00:00Z')),true);
- assert.equal(helpers.trainingResponseOpen('2026-10-26T16:00:00Z',new Date('2026-10-24T21:59:59Z')),false);
- assert.equal(helpers.trainingResponseOpen('2026-10-26T16:00:00Z',new Date('2026-10-24T22:00:00Z')),true);
- assert.equal(helpers.trainingReleaseDate('2027-01-03T16:00:00Z'),'2026-12-27');
  let event={nomination_id:'00000000-0000-0000-0000-000000000001',team_id:'team',team_name:'U12',title:'Training',event_type:'training',starts_at:new Date(Date.now()-10800000).toISOString(),ends_at:new Date(Date.now()-7200000).toISOString(),nomination_status:'open',player_id:'player',player_name:'Player',is_nominated:true,response:'accepted',attendance_status:'unexcused',can_manage:true,can_respond:true};
  const noop=async()=>{};
  const stubs={
  'next/link':{__esModule:true,default:({children,...props})=>require('react').createElement('a',props,children)},
  'next/navigation':{notFound:()=>{throw Error('not found')},redirect:()=>{throw Error('redirect')}},
- '@/lib/supabase/server':{createClient:async()=>({auth:{getClaims:async()=>({data:{claims:{sub:'coach'}}})},rpc:async name=>({data:name==='get_nomination_roster_v3'?[event]:name==='get_training_management'?{editable:false}:[]})})},
+ '@/lib/supabase/server':{createClient:async()=>({auth:{getClaims:async()=>({data:{claims:{sub:'coach'}}})},rpc:async name=>({data:name==='get_nomination_roster_v3'?[event]:name==='get_training_management'?{editable:false}:name==='get_training_publication_info'?{release_at:new Date(Date.parse(event.starts_at)-86400000).toISOString()}:[]})})},
  '@/components/team-chat':{TeamChat:()=>null},'@/components/training-management':{TrainingManagement:()=>null},
  '@/app/timy/[teamId]/nominacie/actions':{recordTrainingAttendance:noop,respondToNomination:noop,setNominationStream:noop},
  '@/lib/training-attendance':helpers};

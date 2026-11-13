@@ -6,6 +6,68 @@ create function private.training_release_at(p_start timestamptz)
 returns timestamptz language sql immutable set search_path = '' as $$
   select (date_trunc('week', p_start at time zone 'Europe/Bratislava') - interval '1 day') at time zone 'Europe/Bratislava';
 $$;
+alter table public.team_nominations add column training_published_at timestamptz;
+create table public.training_publication_settings (
+ team_id uuid primary key references public.club_teams(id) on delete cascade,
+ weekday integer not null default 7 check (weekday between 1 and 7),
+ publish_time time not null default '00:00',
+ updated_by uuid references auth.users(id) on delete set null,
+ updated_at timestamptz not null default now()
+);
+alter table public.training_publication_settings enable row level security;
+revoke all on public.training_publication_settings from anon,authenticated;
+
+create function private.training_team_release_at(n public.team_nominations)
+returns timestamptz language sql stable set search_path = '' as $$
+ select coalesce(n.training_published_at,
+   ((date_trunc('week',n.starts_at at time zone 'Europe/Bratislava')::date - 7 + coalesce(s.weekday,7)-1)
+     + coalesce(s.publish_time,'00:00'::time)) at time zone 'Europe/Bratislava')
+ from (select 1) one_row left join public.training_publication_settings s on s.team_id=n.team_id;
+$$;
+revoke all on function private.training_team_release_at(public.team_nominations) from public,anon,authenticated;
+
+create function public.get_training_publication_settings(p_team_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+begin
+ if auth.uid() is null then raise exception 'Not authenticated'; end if;
+ if not exists(select 1 from public.team_memberships m where m.team_id=p_team_id and m.user_id=auth.uid() and m.role in ('coach','manager','club_admin'))
+   and not coalesce(private.is_platform_admin(auth.uid()),false) then raise exception 'Not authorized'; end if;
+ return coalesce((select jsonb_build_object('weekday',s.weekday,'publish_time',to_char(s.publish_time,'HH24:MI')) from public.training_publication_settings s where s.team_id=p_team_id), jsonb_build_object('weekday',7,'publish_time','00:00'));
+end;
+$$;
+create function public.save_training_publication_settings(p_team_id uuid,p_weekday integer,p_time time)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+ perform public.get_training_publication_settings(p_team_id);
+ if p_weekday is null or p_weekday not between 1 and 7 or p_time is null then raise exception 'Invalid publication schedule'; end if;
+ perform 1 from public.club_teams where id=p_team_id for update;
+ -- Preserve every already open response window before changing the rule.
+ update public.team_nominations n set training_published_at=private.training_team_release_at(n)
+ where n.team_id=p_team_id and n.event_type='training' and n.training_published_at is null
+   and n.starts_at>now() and private.training_team_release_at(n)<=now();
+ insert into public.training_publication_settings(team_id,weekday,publish_time,updated_by)
+ values(p_team_id,p_weekday,p_time,auth.uid())
+ on conflict(team_id) do update set weekday=excluded.weekday,publish_time=excluded.publish_time,updated_by=excluded.updated_by,updated_at=now();
+end;
+$$;
+create function public.get_training_publication_info(p_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare n public.team_nominations;
+begin
+ if auth.uid() is null then raise exception 'Not authenticated'; end if;
+ perform 1 from public.get_nomination_roster_v3(p_id) limit 1;
+ select * into n from public.team_nominations where id=p_id and event_type='training';
+ if n.id is null then raise exception 'Training not found'; end if;
+ return jsonb_build_object('release_at',private.training_team_release_at(n));
+end;
+$$;
+revoke all on function public.get_training_publication_settings(uuid) from public,anon;
+revoke all on function public.save_training_publication_settings(uuid,integer,time) from public,anon;
+revoke all on function public.get_training_publication_info(uuid) from public,anon;
+grant execute on function public.get_training_publication_settings(uuid) to authenticated;
+grant execute on function public.save_training_publication_settings(uuid,integer,time) to authenticated;
+grant execute on function public.get_training_publication_info(uuid) to authenticated;
+
 create function private.training_attendance(p_response text, p_override text)
 returns text language sql immutable set search_path = '' as $$
   select case when p_override = 'present' then 'present'
@@ -100,7 +162,7 @@ begin
   select * into training from public.team_nominations where id = p_nomination_id for update;
   if training.status <> 'open' then raise exception 'Open nomination not found'; end if;
   if training.event_type = 'training' and (training.starts_at <= now()
-    or private.training_release_at(training.starts_at) > now()) then
+    or private.training_team_release_at(training) > now()) then
     raise exception 'Training response window closed';
   end if;
   update public.team_nomination_players
@@ -386,7 +448,7 @@ begin
     np.responded_at,
     (
       np.player_id is not null
-      and (n.event_type <> 'training' or (n.starts_at > now() and private.training_release_at(n.starts_at) <= now()))
+      and (n.event_type <> 'training' or (n.starts_at > now() and private.training_team_release_at(n) <= now()))
       and (
         is_manager
         or exists (
@@ -449,7 +511,7 @@ begin
     'weekly:' || n.team_id::text || ':' || (date_trunc('week',n.starts_at at time zone 'Europe/Bratislava')::date)::text
   from public.team_nominations n
   where n.event_type='training' and n.status='open' and n.starts_at > now()
-    and private.training_release_at(n.starts_at) <= now()
+    and private.training_team_release_at(n) <= now()
     and exists(select 1 from public.team_nomination_players np
       join public.player_guardians pg on pg.player_id=np.player_id and pg.guardian_user_id=uid
       join public.team_players tp on tp.player_id=np.player_id and tp.team_id=n.team_id and tp.status='active'
@@ -471,7 +533,7 @@ begin
   join public.team_nominations n on n.id=a.nomination_id
   join public.club_teams t on t.id=n.team_id
   join public.team_nominations w on w.team_id=n.team_id and w.event_type='training'
-    and w.status='open' and w.starts_at>now() and private.training_release_at(w.starts_at)<=now()
+    and w.status='open' and w.starts_at>now() and private.training_team_release_at(w)<=now()
     and date_trunc('week',w.starts_at at time zone 'Europe/Bratislava')=date_trunc('week',n.starts_at at time zone 'Europe/Bratislava')
   where a.user_id=uid and a.kind='weekly' and a.dismissed_at is null
     and a.version='weekly:' || n.team_id::text || ':' || (date_trunc('week',n.starts_at at time zone 'Europe/Bratislava')::date)::text
@@ -493,7 +555,7 @@ declare n public.team_nominations;
 begin
   select * into n from public.team_nominations where id=new.nomination_id;
   if n.event_type<>'training' or n.status<>'open' or n.starts_at<=now()
-    or private.training_release_at(n.starts_at)>now() then return new; end if;
+    or private.training_team_release_at(n)>now() then return new; end if;
   insert into public.training_notifications(user_id,nomination_id,kind,version)
   select distinct pg.guardian_user_id,n.id,'changed',private.training_notification_version(n)
   from public.player_guardians pg

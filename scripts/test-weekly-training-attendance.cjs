@@ -62,11 +62,37 @@ async function main() {
  await db.query('select record_training_attendance($1,$2,\'unmarked\')',[uuid(103),uuid(20)]);
  assert.equal(await scalar('select attendance_status from team_nomination_players where nomination_id=$1',[uuid(103)]),null,'reset restores parental basis');
  await assert.rejects(()=>db.query('select record_training_attendance($1,$2,\'present\')',[uuid(105),uuid(20)]),/Training not found/);
+
+ // A coach can publish earlier; moving the rule later must never re-lock opened plans.
+ const nextMonday=await scalar("select (date_trunc('week',now() at time zone 'Europe/Bratislava')+interval '7 days 17 hours') at time zone 'Europe/Bratislava'");
+ const scheduled=await scalar(`select create_team_nomination($1,'Next week','training',$2::timestamptz at time zone 'Europe/Bratislava','Pitch','',array[]::uuid[])`,[uuid(10),nextMonday]);
+ const defaults=await scalar('select get_training_publication_settings($1)',[uuid(10)]);
+ assert.equal(defaults.weekday,7);assert.equal(defaults.publish_time,'00:00');
+ await db.query("select save_training_publication_settings($1,1,'00:00')",[uuid(10)]);
+ const earlyRelease=await scalar('select private.training_team_release_at(n) from team_nominations n where id=$1',[scheduled]);
+ assert.ok(new Date(earlyRelease)<=new Date());
+ await db.exec(`select set_config('test.uid','${uuid(2)}',false)`);
+ await db.query("select respond_to_team_nomination($1,$2,'accepted')",[scheduled,uuid(20)]);
+ await assert.rejects(()=>db.query("select save_training_publication_settings($1,7,'23:59')",[uuid(10)]),/Not authorized/);
+ await db.exec(`select set_config('test.uid','${uuid(1)}',false)`);
+ await db.query("select save_training_publication_settings($1,7,'23:59')",[uuid(10)]);
+ assert.equal(new Date(await scalar('select private.training_team_release_at(n) from team_nominations n where id=$1',[scheduled])).getTime(),new Date(earlyRelease).getTime(),'open response window preserved');
+ const settings=await scalar('select get_training_publication_settings($1)',[uuid(10)]);
+ assert.equal(settings.weekday,7);assert.equal(settings.publish_time,'23:59');
+ const newWeek=await scalar(`select create_team_nomination($1,'Newly scheduled','training',$2::timestamptz at time zone 'Europe/Bratislava','Pitch','',array[]::uuid[])`,[uuid(10),nextMonday]);
+ assert.ok(new Date(await scalar('select private.training_team_release_at(n) from team_nominations n where id=$1',[newWeek]))>new Date(),'new unopened event uses new schedule');
+ await db.exec(`select set_config('test.uid','${uuid(2)}',false)`);
+ await db.query("select respond_to_team_nomination($1,$2,'declined','School')",[scheduled,uuid(20)]);
+ await assert.rejects(()=>db.query("select respond_to_team_nomination($1,$2,'accepted')",[newWeek,uuid(20)]),/window closed/);
+ const info=await scalar('select get_training_publication_info($1)',[scheduled]);
+ assert.equal(new Date(info.release_at).getTime(),new Date(earlyRelease).getTime());
+ await db.exec(`select set_config('test.uid','${uuid(1)}',false)`);
+ await assert.rejects(()=>db.query("select save_training_publication_settings($1,8,'00:00')",[uuid(10)]),/Invalid publication/);
  await db.exec(`select set_config('test.uid','${uuid(3)}',false)`);
  assert.equal((await db.query('select * from get_my_training_notifications_v2()')).rows.length,0,'other user sees nothing');
  await db.exec(`select set_config('test.uid','',false)`);
  await assert.rejects(()=>db.query('select * from get_my_training_notifications_v2()'),/Not authenticated/);
- for(const fn of ['get_team_training_stats_v2(uuid,date,date)','get_my_training_notifications_v2()']) assert.equal(await scalar('select has_function_privilege(\'anon\',$1,\'execute\')',[fn]),false);
+ for(const fn of ['get_team_training_stats_v2(uuid,date,date)','get_my_training_notifications_v2()','get_training_publication_info(uuid)','save_training_publication_settings(uuid,integer,time)']) assert.equal(await scalar('select has_function_privilege(\'anon\',$1,\'execute\')',[fn]),false);
  await db.close();
  console.log('PASS: weekly release/DST, auto roster, digest dedup/late addition, attendance precedence, future/cancelled exclusion, freeze, permissions, sport regression');
 }

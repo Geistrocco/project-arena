@@ -1,3 +1,4 @@
+import { saveTrainingPublication } from "./actions";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -92,7 +93,10 @@ export default async function TeamCalendarPage({
   const range = monthly ? { from: `${month}-01`, to: `${month}-${new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()}` } : season;
   let stats: TrainingStat[] = [];
   let statsError = false;
+  let publication: { weekday: number; publish_time: string } | null = null;
   if (canManage) {
+    const { data: settings } = await supabase.rpc("get_training_publication_settings", { p_team_id: teamId });
+    publication = settings as { weekday: number; publish_time: string } | null;
     const { data, error: trainingStatsError } = await supabase.rpc("get_team_training_stats_v2", { p_team_id: teamId, p_from: range.from, p_to: range.to });
     stats = (data as TrainingStat[] | null) ?? [];
     statsError = Boolean(trainingStatsError);
@@ -110,7 +114,10 @@ export default async function TeamCalendarPage({
       <p className="rounded-xl bg-arena-50 px-4 py-3 text-sm font-bold text-arena-800">Klikni na deň a pozri si jeho program</p>
     </div>
 
-    {query.stav === "trening-vytvoreny" && <p className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 font-bold text-emerald-800">Tréning bol pridaný pre všetkých aktívnych hráčov tímu. Potvrdzovanie sa otvorí v nedeľu pred jeho týždňom.</p>}
+    {query.stav === "trening-vytvoreny" && <p className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 font-bold text-emerald-800">Tréning bol pridaný pre všetkých aktívnych hráčov tímu. Potvrdzovanie sa otvorí podľa nastavenia zverejňovania tímu.</p>}
+
+    {query.stav === "zverejnovanie-ulozene" && <p role="status" className="mt-6 rounded-2xl bg-emerald-50 p-4 font-bold text-emerald-800">Nastavenie je uložené. Už otvorené potvrdenia zostávajú otvorené.</p>}
+    {canManage && <details className="mt-6 rounded-2xl border border-slate-200 bg-white p-5" id="zverejnovanie"><summary className="cursor-pointer font-extrabold text-ink">Administrácia · zverejňovanie tréningov</summary><p className="mt-3 text-sm text-slate-600">Vyber deň a čas, keď sa otvorí potvrdzovanie programu na nasledujúci pondelok až nedeľu. Čas platí pre Slovensko. Program v kalendári zostáva viditeľný dopredu. Zmena neuzavrie už otvorené potvrdenia.</p>{publication ? <form action={saveTrainingPublication} className="mt-4 flex flex-wrap items-end gap-4"><input name="teamId" type="hidden" value={teamId}/><input name="month" type="hidden" value={month}/><label className="font-bold text-ink">Deň<select className="input mt-2" name="weekday" defaultValue={publication.weekday}>{["Pondelok", "Utorok", "Streda", "Štvrtok", "Piatok", "Sobota", "Nedeľa"].map((day, index) => <option key={day} value={index + 1}>{day}</option>)}</select></label><label className="font-bold text-ink">Čas<input className="input mt-2" type="time" name="publishTime" required defaultValue={publication.publish_time}/></label><button className="btn-primary" type="submit">Uložiť nastavenie</button></form> : <p role="alert" className="mt-3 text-red-700">Nastavenie sa nepodarilo načítať. Obnov stránku.</p>}</details>}
 
     <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="flex items-center justify-between gap-3">
