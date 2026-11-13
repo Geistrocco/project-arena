@@ -38,6 +38,8 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
     const name = String(form.get("name") ?? "").trim();
+    const accountMode = String(form.get("accountMode") ?? "");
+    if (mode === "signup" && !["parent", "coach"].includes(accountMode)) { setError(true); setMessage("Vyber si, ako chceš aplikáciu používať."); return; }
     const marketingConsent = form.get("marketingConsent") === "on";
     const supabase = createClient();
     const origin = window.location.origin;
@@ -50,6 +52,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
         options: {
           data: {
             full_name: name,
+            account_mode: accountMode,
             marketing_consent: marketingConsent,
             privacy_version: "2026-09-04",
           },
@@ -120,6 +123,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
         <p className="eyebrow">Tournio</p>
         <h1 className="mt-2 text-3xl font-extrabold text-ink">{titles[mode]}</h1>
         <form className="mt-8 space-y-5" onSubmit={submit}>
+          {mode === "signup" && <fieldset className="space-y-3"><legend className="label">Ako chceš používať Tournio?</legend><label className="flex gap-3 rounded-xl border border-slate-200 p-4"><input type="radio" name="accountMode" value="parent" required/><span><strong className="block">Rodič / hráč</strong><span className="text-sm text-slate-600">Moje deti, tímy, tréningy a potvrdenia účasti.</span></span></label><label className="flex gap-3 rounded-xl border border-slate-200 p-4"><input type="radio" name="accountMode" value="coach" required/><span><strong className="block">Tréner / organizátor</strong><span className="text-sm text-slate-600">Správa tímov a turnajov aj všetky možnosti rodiča vrátane pridania vlastného dieťaťa.</span></span></label></fieldset>}
           {mode === "signup" && <Field label="Meno a priezvisko" name="name" autoComplete="name" />}
           {mode !== "reset" && <Field label="E-mail" name="email" type="email" autoComplete="email" />}
           {mode !== "forgot" && (

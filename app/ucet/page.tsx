@@ -1,13 +1,16 @@
+import { getAccountContext } from "@/lib/account-context";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createPlayerProfile, inviteGuardian, inviteParentToTeam, requestNewTeam, requestTeamAccess, respondToGuardianInvitation, respondToTeamPlayerInvitation, setMarketingConsent } from "@/app/ucet/actions";
+import { createPlayerProfile, inviteGuardian, inviteParentToTeam, requestNewTeam, requestTeamAccess, respondToGuardianInvitation, respondToTeamPlayerInvitation, setMarketingConsent, setAccountMode } from "@/app/ucet/actions";
 
 type TeamRosterPlayer = { team_id: string; player_id: string; full_name: string; joined_at: string; status: "active" | "inactive" };
 type PlayerTeam = { id: string; label: string };
 
 export default async function AccountPage({ searchParams }: { searchParams: Promise<{ stav?: string }> }) {
   const params = await searchParams;
+  const { mode } = await getAccountContext();
+  const isCoach = mode === "coach";
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   if (error || !data?.claims) redirect("/prihlasenie");
@@ -53,15 +56,17 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <h1 className="mt-2 text-3xl font-extrabold text-ink">Vitajte{metadata?.full_name ? `, ${metadata.full_name}` : ""}</h1>
         <p className="mt-3 text-slate-600">Prihlásený účet: {email}</p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link className="btn-primary" href="/vytvorit-turnaj">Vytvoriť turnaj</Link>
-          <Link className="btn-secondary" href="/moje-turnaje">Moje turnaje ({myTournamentCount ?? 0})</Link>
+          {isCoach && <Link className="btn-primary" href="/vytvorit-turnaj">Vytvoriť turnaj</Link>}
+          {isCoach && <Link className="btn-secondary" href="/moje-turnaje">Moje turnaje ({myTournamentCount ?? 0})</Link>}
+          <Link className="btn-secondary" href="/moj-tim">Moje tímy</Link>
+          <Link className="btn-secondary" href="/treningy">Tréningy mojich detí</Link>
           {role && ["owner", "admin"].includes(role.role) && <Link className="btn-secondary" href="/admin/pouzivatelia">Administrácia</Link>}
         </div>
 
-        <div className="mt-8 rounded-2xl border border-arena-200 bg-arena-50 p-5" id="moje-turnaje">
+        {isCoach && <div className="mt-8 rounded-2xl border border-arena-200 bg-arena-50 p-5" id="moje-turnaje">
           <div className="flex items-center justify-between gap-4"><div><h2 className="text-lg font-extrabold text-ink">Moje turnaje</h2><p className="mt-1 text-sm text-slate-600">Rýchly prístup k turnajom, ktoré organizujete.</p></div><Link className="shrink-0 text-sm font-extrabold text-arena-700 hover:text-arena-600" href="/moje-turnaje">Zobraziť všetky →</Link></div>
           {(myTournaments?.length ?? 0) > 0 ? <div className="mt-4 space-y-2">{myTournaments?.map((tournament) => <Link className="flex items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 text-sm shadow-sm transition hover:ring-2 hover:ring-arena-200" href={`/turnaje/${tournament.slug}/administracia`} key={tournament.slug}><span className="font-bold text-ink">{tournament.name}</span><span className="shrink-0 text-slate-500">{date.format(new Date(`${tournament.event_date}T12:00:00Z`))}</span></Link>)}</div> : <p className="mt-4 rounded-xl bg-white px-4 py-4 text-sm text-slate-600">Zatiaľ nemáte vytvorený turnaj.</p>}
-        </div>
+        </div>}
 
         <div className="mt-8 border-t border-slate-200 pt-6" id="rodina">
           <h2 className="text-lg font-extrabold text-ink">Rodina a hráči</h2>
@@ -132,12 +137,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           {sentInvitations.length > 0 && <details className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4"><summary className="cursor-pointer text-sm font-bold text-slate-700">Odoslané pozvania ({sentInvitations.length})</summary><div className="mt-3 space-y-2">{sentInvitations.map((invitation) => <p className="text-sm text-slate-600" key={invitation.id}>{playerById.get(invitation.player_id)?.full_name ?? "Hráč"} · {invitation.invited_email} · <strong>{invitation.status === "pending" && new Date(invitation.expires_at) <= new Date() ? "vypršalo" : invitation.status === "pending" ? "čaká" : invitation.status === "accepted" ? "prijaté" : invitation.status === "declined" ? "odmietnuté" : invitation.status === "expired" ? "vypršalo" : "zrušené"}</strong></p>)}</div></details>}
         </div>
 
-        <div className="mt-8 border-t border-slate-200 pt-6" id="klubovy-tim">
+        {isCoach && <div className="mt-8 border-t border-slate-200 pt-6" id="klubovy-tim">
           <h2 className="text-lg font-extrabold text-ink">Môj klubový tím</h2>
           <p className="mt-2 text-sm text-slate-600">Vyberte konkrétny tím a požiadajte o overenie. Prístup nevznikne automaticky.</p>
           <form action={requestTeamAccess} className="mt-4 grid gap-4 sm:grid-cols-2">
             <select className="field sm:col-span-2" name="teamId" required defaultValue=""><option value="" disabled>Vyberte klub a kategóriu</option>{teams?.map((team) => <option key={team.id} value={team.id}>{team.name} · {team.season}</option>)}</select>
-            <label><span className="label">Funkcia v tíme</span><select className="field" name="requestedRole" required defaultValue="coach"><option value="coach">Tréner</option><option value="manager">Vedúci tímu</option><option value="club_admin">Administrátor klubu</option></select></label>
+            <label><span className="label">Funkcia v tíme</span><select className="field" name="requestedRole" required defaultValue="coach"><option value="coach">Tréner</option><option value="manager">Vedúci tímu</option><option value="club_admin">Správca tímu</option></select></label>
             <label><span className="label">Telefónne číslo <span className="font-normal text-slate-500">(voliteľné)</span></span><input className="field" name="phone" maxLength={30} placeholder="+421 900 000 000" type="tel" /></label>
             <label className="sm:col-span-2"><span className="label">Ako môžeme overiť váš vzťah k tímu? <span className="font-normal text-slate-500">(voliteľné)</span></span><textarea className="field min-h-28 resize-y" name="message" maxLength={1000} placeholder="Môžete uviesť napríklad svoju funkciu, klubový kontakt alebo odkaz na verejný profil." /></label>
             <p className="text-xs text-slate-500 sm:col-span-2">Žiadosť posúdime podľa e-mailu vášho účtu. Ak budeme potrebovať ďalšie potvrdenie, ozveme sa vám.</p>
@@ -151,7 +156,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
               <label><span className="label">Mesto</span><input className="field" name="city" maxLength={100} required /></label>
               <label><span className="label">Kategória</span><input className="field" name="category" maxLength={30} placeholder="U12" required /></label>
               <label><span className="label">Sezóna</span><input className="field" name="season" pattern="[0-9]{4}/[0-9]{2}" defaultValue="2026/27" required /></label>
-              <label><span className="label">Vaša funkcia</span><select className="field" name="requestedRole" defaultValue="coach" required><option value="coach">Tréner</option><option value="manager">Vedúci tímu</option><option value="club_admin">Administrátor klubu</option></select></label>
+              <label><span className="label">Vaša funkcia</span><select className="field" name="requestedRole" defaultValue="coach" required><option value="coach">Tréner</option><option value="manager">Vedúci tímu</option><option value="club_admin">Správca tímu</option></select></label>
               <label><span className="label">Odkaz <span className="font-normal text-slate-500">(voliteľné)</span></span><input className="field" name="sourceUrl" maxLength={500} placeholder="Sportnet alebo web klubu" type="url" /></label>
               <label className="sm:col-span-2"><span className="label">Poznámka <span className="font-normal text-slate-500">(voliteľné)</span></span><textarea className="field min-h-24" name="message" maxLength={1000} /></label>
               <button className="btn-secondary justify-center sm:col-span-2" type="submit">Odoslať tím na schválenie</button>
@@ -182,7 +187,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </div>}
           {(claims?.length ?? 0) > 0 && <div className="mt-4 space-y-2">{claims?.map((claim) => <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm" key={claim.id}>Žiadosť: <strong>{claim.status === "pending" ? "čaká na schválenie" : claim.status === "approved" ? "schválená" : "zamietnutá"}</strong></p>)}</div>}
           {(teamRequests?.length ?? 0) > 0 && <div className="mt-4 space-y-2">{teamRequests?.map((request) => <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm" key={request.id}>{request.club_name} {request.category}: <strong>{request.status === "pending" ? "čaká na schválenie" : request.status === "approved" ? "schválený" : "zamietnutý"}</strong></p>)}</div>}
-        </div>
+        </div>}
+
+        <details className="mt-8 rounded-2xl border border-slate-200 p-5" id="nastavenia-uctu"><summary className="cursor-pointer font-bold text-ink">Nastavenia účtu</summary><p className="mt-3 text-sm text-slate-600">Aktuálne: {isCoach ? "Tréner / organizátor" : "Rodič / hráč"}. Tréner má aj všetky rodičovské funkcie. Zmena typu účtu nemení pridelené oprávnenia tímov.</p>{params.stav === "typ-uctu-ulozeny" && <p role="status" className="mt-3 text-emerald-700">Typ účtu bol uložený.</p>}<form action={setAccountMode} className="mt-4 flex flex-wrap gap-3"><select className="field" name="accountMode" defaultValue={mode} aria-label="Typ účtu"><option value="parent">Rodič / hráč</option><option value="coach">Tréner / organizátor</option></select><button className="btn-secondary" type="submit">Uložiť typ účtu</button></form></details>
 
         <div className="mt-8 border-t border-slate-200 pt-6">
           <h2 className="text-lg font-extrabold text-ink">E-mailové novinky a ponuky</h2>
