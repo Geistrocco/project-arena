@@ -1,5 +1,6 @@
 "use client";
 
+import { authErrorMessage } from "@/lib/auth-errors";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -15,6 +16,7 @@ const titles: Record<Mode, string> = {
 };
 
 export function AuthForm({ mode, verificationError = false, suspended = false }: { mode: Mode; verificationError?: boolean; suspended?: boolean }) {
+  const [confirmationEmail, setConfirmationEmail] = useState("");
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState(
     suspended
@@ -31,6 +33,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
     setPending(true);
     setMessage("");
     setError(false);
+    try {
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email") ?? "").trim();
     const password = String(form.get("password") ?? "");
@@ -38,7 +41,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
     const marketingConsent = form.get("marketingConsent") === "on";
     const supabase = createClient();
     const origin = window.location.origin;
-    let result: { error: { message: string } | null };
+    let result: { error: { code?: string; message: string } | null };
 
     if (mode === "signup") {
       result = await supabase.auth.signUp({
@@ -88,15 +91,27 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
 
     if (result.error) {
       setError(true);
-      setMessage(
-        result.error.message.includes("Invalid login")
-          ? "Nesprávny e-mail alebo heslo."
-          : result.error.message.includes("Password")
-            ? "Heslo musí mať aspoň 8 znakov."
-            : "Operáciu sa nepodarilo dokončiť. Skúste to znova.",
-      );
+      setMessage(authErrorMessage(result.error));
+      if (mode === "login" && result.error.code === "email_not_confirmed") setConfirmationEmail(email);
     }
-    setPending(false);
+    } catch {
+      setError(true);
+      setMessage("Nepodarilo sa spojiť so serverom. Skontroluj pripojenie a skús to znova.");
+    } finally {
+      setPending(false);
+    }
+
+  }
+
+  async function resendConfirmation() {
+    if (!confirmationEmail || pending) return;
+    setPending(true);
+    try {
+      const { error } = await createClient().auth.resend({ type: "signup", email: confirmationEmail, options: { emailRedirectTo: `${window.location.origin}/auth/callback` } });
+      setError(Boolean(error));
+      setMessage(error ? authErrorMessage(error) : "Ak účet čaká na potvrdenie, poslali sme nový e-mail. Otvor najnovšiu správu a skontroluj aj spam.");
+    } catch { setError(true); setMessage("E-mail sa nepodarilo vyžiadať. Skús to znova."); }
+    finally { setPending(false); }
   }
 
   return (
@@ -123,6 +138,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false }:
             {pending ? "Pracujem…" : mode === "login" ? "Prihlásiť sa" : mode === "signup" ? "Vytvoriť účet" : mode === "forgot" ? "Poslať odkaz" : "Uložiť nové heslo"}
           </button>
         </form>
+        {mode === "login" && confirmationEmail && <button className="btn-secondary mt-4 w-full justify-center" disabled={pending} type="button" onClick={() => void resendConfirmation()}>Poslať nový potvrdzovací e-mail</button>}
         <div className="mt-6 space-y-2 text-center text-sm text-slate-600">
           {mode === "login" && <><p><Link className="font-semibold text-arena-700 hover:underline" href="/zabudnute-heslo">Zabudli ste heslo?</Link></p><p>Nemáte účet? <Link className="font-semibold text-arena-700 hover:underline" href="/registracia">Zaregistrovať sa</Link></p></>}
           {mode === "signup" && <p>Už máte účet? <Link className="font-semibold text-arena-700 hover:underline" href="/prihlasenie">Prihlásiť sa</Link></p>}
