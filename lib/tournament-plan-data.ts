@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { calculateStandings, type PlanGroup, type PlanMatch, type PlanTeam } from "@/lib/tournament-plan-calculations";
+import { groupResultsComplete, calculateStandings, type PlanGroup, type PlanMatch, type PlanTeam } from "@/lib/tournament-plan-calculations";
 export type { PlanGroup, PlanMatch, PlanTeam, Standing } from "@/lib/tournament-plan-calculations";
 export type TournamentAuditEvent = { id: string; title: string; detail: string; createdAt: string };
 
@@ -7,7 +7,7 @@ export async function getTournamentPlan(slug: string, options: { publicExport?: 
   const supabase = await createClient();
   const [{ data: auth }, { data: tournament }] = await Promise.all([
     supabase.auth.getClaims(),
-    supabase.from("tournaments").select("id,organizer_id").eq("slug", slug).maybeSingle(),
+    supabase.from("tournaments").select("id,organizer_id,ranking_rule").eq("slug", slug).maybeSingle(),
   ]);
   if (!tournament) return null;
   const [groupResult, teamResult, matchResult] = await Promise.all([
@@ -19,7 +19,11 @@ export async function getTournamentPlan(slug: string, options: { publicExport?: 
   const { data: groups } = groupResult;
   const { data: teams } = teamResult;
   const { data: matches } = matchResult;
-  const planGroups = ((groups ?? []) as Omit<PlanGroup, "teams">[]).map((group) => ({ ...group, teams: ((teams ?? []) as PlanTeam[]).filter((team) => team.group_id === group.id) }));
+  const { data: rankingData, error: rankingError } = await supabase.rpc("get_tournament_rankings", { p_slug: slug });
+  if (rankingError && tournament.ranking_rule !== "legacy") throw new Error("Poradie skupín sa nepodarilo načítať.");
+  const rankings = (rankingData ?? {}) as Record<string,{ rows: import("@/lib/tournament-plan-calculations").Standing[]; version: string; reason: string | null }>;
+  if (tournament.ranking_rule !== "legacy" && (groups ?? []).some(group => !rankings[group.id]?.rows)) throw new Error("Poradie skupín sa nepodarilo načítať.");
+  const planGroups = ((groups ?? []) as Omit<PlanGroup, "teams">[]).map((group) => ({ ...group, ranking_rule: tournament.ranking_rule ?? "legacy", standings: tournament.ranking_rule === "legacy" ? undefined : rankings[group.id]?.rows, ranking_version: rankings[group.id]?.version, tie_reason: rankings[group.id]?.reason, teams: ((teams ?? []) as PlanTeam[]).filter((team) => team.group_id === group.id) }));
   const planMatches = resolveTournamentSources(planGroups, (matches ?? []) as PlanMatch[]);
   const userId = auth?.claims?.sub;
   const canManage = userId === tournament.organizer_id;
@@ -70,12 +74,12 @@ export async function getTournamentPlan(slug: string, options: { publicExport?: 
 export function resolveTournamentSources(groups: PlanGroup[], matches: PlanMatch[]) {
   const byNumber = new Map(matches.map((match) => [match.match_number, match]));
   const groupMatches = matches.filter((match) => match.phase === "group" || match.phase === "final_group");
-  const standings = new Map(groups.map((group) => [group.code, groupMatches.filter((match) => match.group_id === group.id).every((match) => match.status === "finished")
+  const standings = new Map(groups.map((group) => [group.code, groupResultsComplete(group,groupMatches)
     ? calculateStandings(group, groupMatches) : null]));
   function resolve(source: string | null, seen = new Set<number>()): string | null {
     if (!source) return null;
-    const position = /^(\d+)\. miesto skupiny ([A-Z]+)$/.exec(source);
-    if (position) return standings.get(position[2])?.[Number(position[1]) - 1]?.name ?? null;
+    const position = /^(\d+)\. miesto skupiny ([A-Z0-9]+)$/.exec(source);
+    if (position) { const row = standings.get(position[2])?.[Number(position[1]) - 1]; return row && !row.unresolved ? row.name : null; }
     const prior = /^(Víťaz|Porazený) zápasu (\d+)$/.exec(source);
     if (!prior) return null;
     const number = Number(prior[2]); const match = byNumber.get(number);
