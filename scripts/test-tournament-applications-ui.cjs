@@ -9,6 +9,7 @@ const component=load('components/tournament-applications.tsx',{'next/link':link,
 const render=async admin=>renderToStaticMarkup(await component({slug:'cup',admin}));
 let html=await render(false);assert.ok(html.includes('Team A'));assert.ok(!html.includes('Wrong category'));assert.ok(html.includes('Čaká na schválenie'));assert.ok(!html.includes('private@example.test'));assert.ok(!html.includes('bola uložená'));
 context={...context,user:{id:'organizer',user_metadata:{}}};html=await render(true);assert.ok(html.includes('private@example.test'));assert.ok(html.includes('Prijať'));assert.ok(html.includes('Odmietnuť'));assert.ok(html.includes('Rozpis sa schválením nemení'));
+const submitted=context.applications[0];context={...context,applications:[{...submitted,id:'old',team_name:'Older accepted',status:'accepted',created_at:'2026-01-01'},{...submitted,id:'new',team_name:'Newest pending',created_at:'2026-11-14'}]};html=await render(true);assert.ok(html.indexOf('Newest pending')<html.indexOf('Older accepted'),'pending applications are visible first');
 context={...context,user:null};html=await render(false);assert.ok(html.includes('Prihlásiť sa ako tréner'));assert.ok(!html.includes('private@example.test'));
 context={...context,error:true,user:{id:'coach',user_metadata:{}}};html=await render(false);assert.ok(html.includes('nepodarilo načítať'));assert.ok(!html.includes('Odoslať prihlášku'));
 console.log('PASS: suitable team selection, real action forms without premature success, private contacts, decisions, sign-in and load failure');

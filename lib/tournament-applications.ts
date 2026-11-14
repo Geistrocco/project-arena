@@ -1,7 +1,8 @@
 import "server-only";
+import {cache} from "react";
 import { createClient } from "@/lib/supabase/server";
 export type Application = { id: string; team_id: string; team_name: string; status: "pending" | "accepted" | "rejected"; contact_name: string; contact_email: string; phone: string; note: string; decision_reason: string | null; created_at: string };
-export async function getApplicationContext(slug: string) {
+export const getApplicationContext=cache(async (slug: string) => {
   const supabase = await createClient();
   const [{ data: { user } }, { data: tournament }] = await Promise.all([supabase.auth.getUser(), supabase.from("tournaments").select("id,organizer_id,category,publication_status,tournament_type,registration_closed_at").eq("slug",slug).maybeSingle()]);
   if (!tournament) return { user, tournament: null, teams: [], applications: [] as Application[], error: false };
@@ -13,4 +14,4 @@ export async function getApplicationContext(slug: string) {
   const ids = (memberships ?? []).map(m => m.team_id);
   const { data: teams } = ids.length ? await supabase.from("club_teams").select("id,name,category,season").in("id",ids).eq("status","active").order("name") : { data: [] };
   return { user, tournament, teams: teams ?? [], applications: (applications ?? []) as Application[], error: Boolean(error) };
-}
+});
