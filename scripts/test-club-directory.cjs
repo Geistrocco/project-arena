@@ -1,0 +1,9 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Directory pagination regression runner. */
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),Module=require('node:module'),ts=require('typescript');
+const filename=path.resolve(__dirname,'../lib/clubs.ts'),m=new Module(filename,module),calls=[];
+const rows=Array.from({length:1205},(_,i)=>({id:String(i).padStart(5,'0'),name:`Klub ${i}`,short_name:`Klub ${i}`,sport:'football',country:'Slovensko',city:'',logo_placeholder:'FK',source:'sportnet_futbalnet',source_id:String(i)}));
+let fail=false;
+const client={from:()=>{const q={select:()=>q,eq:()=>q,order:key=>{assert.equal(key,'id');return q;},range:(start,end)=>{calls.push([start,end]);q.data=rows.slice(start,end+1);return q;},returns:async()=>({data:q.data,error:fail?Error('offline'):null})};return q;}};
+m.filename=filename;m.paths=Module._nodeModulePaths(path.dirname(filename));m.require=n=>n==='@/data/clubs'?{footballClubs:[{id:'fallback'}]}:n==='@/lib/supabase/server'?{createClient:async()=>client}:require(n);m._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,filename);
+async function main(){process.env.NEXT_PUBLIC_SUPABASE_URL='https://example.supabase.co';process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY='test';let clubs=await m.exports.getActiveClubs();assert.equal(clubs.length,1205);assert.equal(new Set(clubs.map(c=>c.id)).size,1205);assert.deepEqual(calls,[[0,499],[500,999],[1000,1499]]);assert.ok(clubs.some(c=>c.sourceId==='1204'));fail=true;clubs=await m.exports.getActiveClubs();assert.equal(clubs[0].id,'fallback');console.log('PASS: complete directory beyond 1,000 clubs, stable pagination, source mapping and failure fallback');}
+main().catch(e=>{console.error(e);process.exitCode=1});

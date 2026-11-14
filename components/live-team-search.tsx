@@ -1,33 +1,14 @@
 "use client";
 
-import {useEffect,useState} from "react";
-import {createClient} from "@/lib/supabase/client";
-import {normalizeClubSearch} from "@/lib/club-search";
-import {joiningError,teamLabel,type FamilyPlayer,type JoinTeam} from "@/lib/family-team-joining";
+import {useState} from "react";
+import {useTeamSearch} from "@/components/use-team-search";
+import {teamLabel,type FamilyPlayer,type JoinTeam} from "@/lib/family-team-joining";
 import {ParentTeamJoin} from "@/components/family-team-joining";
 
-type Result={query:string;teams:JoinTeam[];error?:string};
 export function LiveTeamSearch({players,selectedPlayer,initialQuery=""}: {players:FamilyPlayer[];selectedPlayer?:string;initialQuery?:string}) {
   const [query,setQuery]=useState(initialQuery);
-  const [result,setResult]=useState<Result|null>(null);
   const [selected,setSelected]=useState<JoinTeam|null>(null);
-  const search=normalizeClubSearch(query);
-  const ready=search.length>=2;
-  const current=result?.query===search?result:null;
-  useEffect(()=>{
-    if(!ready)return;
-    let cancelled=false;
-    const controller=new AbortController();
-    const timer=setTimeout(async()=>{
-      try {
-        const {data,error}=await createClient().rpc("search_joinable_teams",{p_query:search}).abortSignal(controller.signal);
-        if(!cancelled)setResult({query:search,teams:error?[]:(data??[]) as JoinTeam[],error:error?joiningError(error.message):undefined});
-      } catch {
-        if(!cancelled)setResult({query:search,teams:[],error:"Tímy sa nepodarilo načítať. Skús napísať názov znova."});
-      }
-    },180);
-    return ()=>{cancelled=true;clearTimeout(timer);controller.abort();};
-  },[search,ready]);
+  const {current,ready}=useTeamSearch(query);
   return <div className="mt-6">
     <label className="block text-sm font-bold">Nájdi klub alebo mesto<input className="field mt-1" type="search" autoComplete="off" maxLength={100} value={query} onChange={e=>{setQuery(e.target.value);setSelected(null);}} placeholder="Napr. hor alebo dubove U12" aria-describedby="team-search-help"/></label>
     <p className="mt-2 text-xs text-slate-500" id="team-search-help">Napíš aspoň 2 znaky. Možnosti sa zobrazujú počas písania, aj bez diakritiky. Viac slov môžeš zadať v ľubovoľnom poradí.</p>
