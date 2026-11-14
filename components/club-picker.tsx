@@ -11,7 +11,7 @@ export function ClubPicker({ clubs, selected, onChange, initialCustomTeams = [] 
   const searching=query.trim().length>=2;
   const selectedClubs=selected.map(id=>clubs.find(club=>club.id===id)??{id,name:"Klub už nie je v aktívnom adresári",shortName:"",city:"",sport:"",country:"",logoPlaceholder:"KL"});
   const addCustom = () => { const name = custom.trim(); if (name && !customTeams.includes(name)) { setCustomTeams([...customTeams, name]); setCustom(""); } };
-  return <div>
+  return <div id="pozvane-timy" className="scroll-mt-40">
     {selectedClubs.map((club) => <input key={`selected-${club.id}`} type="hidden" name="clubIds" value={club.id}/>)}{customTeams.map((name) => <input key={`custom-${name}`} type="hidden" name="customTeams" value={name}/>)}
     <div className="flex items-center justify-between"><div><p className="eyebrow">05</p><h2 className="mt-2 text-xl font-extrabold">Pozvané tímy</h2><p className="mt-2 text-sm text-slate-500">Vyberte kluby zo zoznamu alebo pridajte vlastný tím.</p></div><span className="rounded-full bg-arena-50 px-3 py-1.5 text-sm font-bold text-arena-700">{selected.length + customTeams.length} vybraných</span></div>
     <label className="mt-6 block" htmlFor={searchId}><span className="label">Vyhľadať klub</span><div className="relative"><SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/><input id={searchId} className="field pl-12" type="search" autoComplete="off" maxLength={100} value={query} onChange={e=>{setQuery(e.target.value);setVisible(40);}} onKeyDown={e=>{if(e.key==="Enter")e.preventDefault();if(e.key==="Escape")setQuery("");}} aria-describedby={`${searchId}-help`} aria-controls={`${searchId}-results`} placeholder="Napr. hor, horna alebo Senec"/></div></label>

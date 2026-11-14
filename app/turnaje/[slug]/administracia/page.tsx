@@ -1,3 +1,4 @@
+import {TournamentWorkflow} from "@/components/tournament-workflow";
 import { TournamentIncidentsPanel } from "@/components/tournament-incidents";
 import { TournamentTieDecisions } from "@/components/tournament-tie-decisions";
 import { TournamentApplications } from "@/components/tournament-applications";
@@ -17,7 +18,7 @@ export default async function TournamentAdministration({ params, searchParams }:
   const query = await searchParams;
   const [tournament, plan] = await Promise.all([getTournamentBySlug(slug), getTournamentPlan(slug)]);
   if (!tournament || !plan?.canScore) notFound();
-  const finished = plan.matches.filter((match) => match.status === "finished").length;
+  const finished = plan.matches.filter(match=>match.status==="finished"&&match.home_score!==null&&match.away_score!==null).length;
   const teams = new Set(plan.groups.flatMap((group) => group.teams.map((team) => team.team_name))).size;
   const dateTime = new Intl.DateTimeFormat("sk-SK", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Bratislava" });
 
@@ -28,22 +29,25 @@ export default async function TournamentAdministration({ params, searchParams }:
       <div className="flex flex-wrap gap-3"><Link className="btn-secondary" href={`/turnaje/${slug}`}>Verejná stránka</Link>{plan.canManage && !plan.lockedAt && <Link className="btn-primary" href={`/turnaje/${slug}/upravit`}>Upraviť turnaj</Link>}</div>
     </div>
 
+    {plan.canManage&&tournament.sport!=="Tenis"&&<TournamentWorkflow slug={slug} date={tournament.date} finished={finished} matchCount={plan.matches.length} locked={Boolean(plan.lockedAt)}/>}
+    <nav className="mt-6 flex flex-wrap gap-2" aria-label="Rýchla navigácia administráciou">{plan.canManage&&tournament.sport!=="Tenis"&&<><Link className="btn-secondary" href="#prihlaska">Prihlášky tímov</Link><Link className="btn-secondary" href={`/turnaje/${slug}/rozlosovanie`}>Účastníci a rozlosovanie</Link></>}<Link className="btn-secondary" href="#zapasy">Zápasy a výsledky</Link>{plan.canManage&&<Link className="btn-secondary" href="#poverenia">Poverené osoby</Link>}</nav>
+
     <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Stat label={tournament.sport === "Tenis" ? "Hráči / dvojice" : "Tímy"} value={String(teams)} />
+      <Stat label={tournament.sport === "Tenis" ? "Hráči / dvojice" : "Miesta v rozpise"} value={String(teams)} />
       <Stat label="Zápasy" value={String(plan.matches.length)} />
       <Stat label="Odohrané" value={`${finished}/${plan.matches.length}`} />
       <Stat label="Poverené osoby" value={String(plan.scorekeepers.length)} />
     </div>
 
     <div className="mt-8"><TournamentResultStatus lockedAt={plan.lockedAt} finished={plan.matches.length > 0 && finished === plan.matches.length} /></div>
-    {plan.canManage && <TournamentResultLock slug={slug} lockedAt={plan.lockedAt} unfinished={plan.matches.filter((m) => m.status !== "finished" || m.home_score === null || m.away_score === null).length} matchCount={plan.matches.length} />}
-    {plan.canManage && tournament.sport !== "Tenis" && <div className="mt-8 rounded-2xl border border-arena-200 bg-arena-50 p-5"><h2 className="text-xl font-extrabold">Účastníci a rozlosovanie</h2><p className="mt-2 text-sm text-slate-600">Skontroluj prijaté a ručne pridané tímy, pozri náhľad skupín a uzavri prihlášky. Existujúce výsledky sú chránené.</p><Link className="btn-primary mt-4" href={`/turnaje/${slug}/rozlosovanie`}>Pripraviť rozlosovanie z účastníkov</Link></div>}
+    {plan.canManage && <div id="potvrdenie-vysledkov" className="scroll-mt-40"><TournamentResultLock slug={slug} lockedAt={plan.lockedAt} unfinished={plan.matches.filter((m) => m.status !== "finished" || m.home_score === null || m.away_score === null).length} matchCount={plan.matches.length} /></div>}
+    {plan.canManage && tournament.sport !== "Tenis" && !plan.lockedAt && !plan.matches.some(m=>m.status==="finished"||m.home_score!==null||m.away_score!==null) && <div className="mt-8 rounded-2xl border border-arena-200 bg-arena-50 p-5"><h2 className="text-xl font-extrabold">Účastníci a rozlosovanie</h2><p className="mt-2 text-sm text-slate-600">Skontroluj prijaté a ručne pridané tímy, pozri náhľad skupín a uzavri prihlášky. Existujúce výsledky sú chránené.</p><Link className="btn-primary mt-4" href={`/turnaje/${slug}/rozlosovanie`}>Pripraviť rozlosovanie z účastníkov</Link></div>}
     {plan.canManage && tournament.sport !== "Tenis" && <div className="mt-8"><TournamentApplications slug={slug} admin/></div>}
     {plan.canManage && tournament.sport !== "Tenis" && <TournamentIncidentsPanel slug={slug} groups={plan.groups} matches={plan.matches} incidents={plan.incidents} locked={Boolean(plan.lockedAt)} sport={tournament.sport}/>}
     {plan.canManage && <TournamentTieDecisions slug={slug} groups={plan.groups} matches={plan.matches} locked={Boolean(plan.lockedAt)}/>}
-    <div className="mt-10"><TournamentPlan incidents={plan.incidents} embedded slug={slug} groups={plan.groups} matches={plan.matches} canManage={plan.canManage} canScore={plan.canScore && !plan.lockedAt} resultsLocked={Boolean(plan.lockedAt)} /></div>
+    <div id="zapasy" className="mt-10 scroll-mt-40"><TournamentPlan incidents={plan.incidents} embedded slug={slug} groups={plan.groups} matches={plan.matches} canManage={plan.canManage} canScore={plan.canScore && !plan.lockedAt} resultsLocked={Boolean(plan.lockedAt)} /></div>
 
-    {plan.canManage && <div className="mt-10 grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
+    {plan.canManage && <div id="poverenia" className="mt-10 grid scroll-mt-40 gap-8 xl:grid-cols-[1.2fr_0.8fr]">
       <TournamentScorekeepers embedded slug={slug} scorekeepers={plan.scorekeepers} />
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-card sm:p-8"><p className="eyebrow">Kontrola</p><h2 className="mt-2 text-2xl font-extrabold">História zmien</h2><p className="mt-2 text-sm text-slate-600">Posledné zmeny výsledkov a oprávnení.</p><div className="mt-6 space-y-4">{plan.auditEvents.map((event) => <div className="border-b border-slate-100 pb-4 last:border-0 last:pb-0" key={event.id}><div className="flex items-start justify-between gap-3"><p className="font-bold text-ink">{event.title}</p><time className="shrink-0 text-xs text-slate-400">{dateTime.format(new Date(event.createdAt))}</time></div><p className="mt-1 text-sm text-slate-600">{event.detail}</p></div>)}{plan.auditEvents.length === 0 && <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">Zatiaľ nebola zaznamenaná žiadna zmena.</p>}</div></section>
     </div>}
