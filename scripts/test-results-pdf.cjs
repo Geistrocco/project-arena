@@ -13,7 +13,7 @@ function load(file, replacements = {}) {
   mod._compile(compiled, path.resolve(file)); return mod.exports;
 }
 const calculations = load("lib/tournament-plan-calculations.ts");
-const { createResultsPdf } = load("lib/tournament-results-pdf.ts", { "@/lib/tournament-plan-calculations": calculations, "@/lib/tournament-ranking": load("lib/tournament-ranking.ts") });
+const { createResultsPdf } = load("lib/tournament-results-pdf.ts", { "@/lib/tournament-plan-calculations": calculations, "@/lib/tournament-incidents": load("lib/tournament-incidents.ts"), "@/lib/tournament-ranking": load("lib/tournament-ranking.ts") });
 const teams = ["MŠK Senec", "ŠK Slovan Bratislava", "FC Spartak Trnava", "Mimoriadne dlhý názov mládežníckeho futbalového klubu Žilina a okolie"];
 const groups = Array.from({ length: 3 }, (_, i) => ({ id: String(i), code: String.fromCharCode(65 + i), name: `Skupina ${String.fromCharCode(65 + i)}`, sort_order: i, teams: teams.map((name, j) => ({ id: `${i}-${j}`, group_id: String(i), slot_number: j, team_name: name })) }));
 const matches = Array.from({ length: 60 }, (_, i) => ({ id: String(i), group_id: String(i % 3), phase: "group", round_number: i, match_number: i + 1, starts_at: "09:25:00", field_number: i % 3 + 1, home_team_name: teams[i % 4], away_team_name: teams[(i + 1) % 4], home_source: null, away_source: null, resolved_home_name: teams[i % 4], resolved_away_name: teams[(i + 1) % 4], home_score: i === 0 ? 0 : 2, away_score: 0, status: i === 59 ? "scheduled" : "finished" }));
@@ -22,5 +22,9 @@ const tournament = { slug: "test-pdf", name: "Žilinský pohár - mládežnícky
   const bytes = await createResultsPdf(tournament, groups, matches, "https://tournio.sk");
   assert.equal(Buffer.from(bytes).subarray(0, 4).toString(), "%PDF");
   fs.mkdirSync("tmp/pdfs", { recursive: true }); fs.writeFileSync("tmp/pdfs/results-smoke.pdf", bytes);
+  const specialMatches = matches.slice(0,2).map((m,i)=>({...m,status:"finished",outcome:i===0?"forfeit":"void",outcome_reason:i===0?"Tím nenastúpil v stanovenom čase.":"Odstúpenie tímu; výsledok sa vylučuje z tabuľky.",home_score:3,away_score:0}));
+  const incidents = {withdrawal_rule:"annul",forfeit_score:3,withdrawals:[{name:teams[1],reason:"Odstúpenie zo zdravotných dôvodov."}],events:[{action:"withdraw",target:teams[1],reason:"Odstúpenie zo zdravotných dôvodov.",created_at:"2026-11-14T09:00:00Z",changes:[{number:2,home:teams[1],away:teams[2],before_home:2,before_away:1,home_score:2,away_score:1,outcome:"void"}]}]};
+  const specialBytes = await createResultsPdf(tournament, groups, specialMatches, "https://tournio.sk", null, incidents);
+  assert.equal(Buffer.from(specialBytes).subarray(0,4).toString(),"%PDF");fs.writeFileSync("tmp/pdfs/incidents-smoke.pdf",specialBytes);
   console.log(`PDF smoke test passed: ${bytes.length} bytes`);
 })().catch((error) => { console.error(error); process.exitCode = 1; });

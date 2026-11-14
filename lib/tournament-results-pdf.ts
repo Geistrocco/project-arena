@@ -1,3 +1,4 @@
+import { matchOutcomeLabel, withdrawalLabels, type TournamentIncidents } from "@/lib/tournament-incidents";
 import { rankingLabels } from "@/lib/tournament-ranking";
 import { jsPDF } from "jspdf";
 import { readFile } from "node:fs/promises";
@@ -5,7 +6,7 @@ import path from "node:path";
 import type { Tournament } from "@/types/tournament";
 import { calculateStandings, type PlanGroup, type PlanMatch } from "@/lib/tournament-plan-calculations";
 
-export async function createResultsPdf(tournament: Tournament, groups: PlanGroup[], matches: PlanMatch[], siteUrl: string, lockedAt: string | null = null) {
+export async function createResultsPdf(tournament: Tournament, groups: PlanGroup[], matches: PlanMatch[], siteUrl: string, lockedAt: string | null = null, incidents?: TournamentIncidents | null) {
   const font = await readFile(path.join(process.cwd(), "assets/fonts/DejaVuSans.ttf"));
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   doc.addFileToVFS("DejaVuSans.ttf", font.toString("base64"));
@@ -49,12 +50,15 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
   text(lockedAt && complete ? "POTVRDENÉ KONEČNÉ VÝSLEDKY" : "PRIEBEŽNÉ VÝSLEDKY", 12);
   if (complete && !lockedAt) text("Všetky zápasy sú odohrané. Čaká sa na potvrdenie organizátorom.", 9);
   text(`Rovnosť bodov: ${rankingLabels[groups[0]?.ranking_rule ?? "legacy"]}`, 8);
+  if (incidents && tournament.sport !== "Tenis") { text(`Kontumácia: ${incidents.forfeit_score}:0. Odstúpenie: ${withdrawalLabels[incidents.withdrawal_rule]}`,8); for (const w of incidents.withdrawals) text(`${w.name} - odstúpil: ${w.reason}`,8); }
   text(`Vytvorené: ${created}`, 8);
   const singleFinal = groups.length === 1 && matches.every((m) => m.phase === "group");
   const placements = new Map<number, string>();
   function placeFromMatch(match: PlanMatch, rank: number) {
     const home = match.resolved_home_name ?? match.home_team_name;
     const away = match.resolved_away_name ?? match.away_team_name;
+    if (match.outcome === "void") return;
+    if (match.outcome === "forfeit" && match.home_score !== null && match.away_score !== null) { const winner = match.home_score > match.away_score ? home : away; const loser = match.home_score > match.away_score ? away : home; const withdrawn = new Set(incidents?.withdrawals.map(w=>w.name) ?? []); if (winner && !withdrawn.has(winner)) placements.set(rank,winner); if (loser && !withdrawn.has(loser)) placements.set(rank+1,loser); return; }
     if (!home || !away || match.home_score === null || match.away_score === null || match.home_score === match.away_score) return;
     placements.set(rank, match.home_score > match.away_score ? home : away);
     placements.set(rank + 1, match.home_score > match.away_score ? away : home);
@@ -64,12 +68,12 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
     if (finalGroup) {
       const rows = calculateStandings(finalGroup, matches);
       const tied = rows.some((r, i) => r.unresolved || ((finalGroup.ranking_rule ?? "legacy") === "legacy" && i > 0 && r.points === rows[i - 1].points && r.difference === rows[i - 1].difference && r.scored === rows[i - 1].scored));
-      if (!tied) rows.forEach((r, i) => placements.set(i + 1, r.name));
+      if (!tied) rows.forEach((r, i) => !r.withdrawn && placements.set(i + 1, r.name));
       const silver = groups.find((g) => g.code === "SILVER");
       if (silver && !singleFinal) {
         const silverRows = calculateStandings(silver, matches);
         const silverTied = silverRows.some((r, i) => r.unresolved || ((silver.ranking_rule ?? "legacy") === "legacy" && i > 0 && r.points === silverRows[i - 1].points && r.difference === silverRows[i - 1].difference && r.scored === silverRows[i - 1].scored));
-        if (!silverTied) silverRows.forEach((r, i) => placements.set(rows.length + i + 1, r.name));
+        if (!silverTied) silverRows.forEach((r, i) => !r.withdrawn && placements.set(rows.length + i + 1, r.name));
       }
     } else {
       const final = matches.filter((m) => m.phase === "playoff").at(-1);
@@ -93,7 +97,7 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
     if (group.tie_reason) text(`Rozhodnutie organizátora: ${group.tie_reason}`,9);
     const standings = calculateStandings(group, matches);
     table(["# / Tím", "Z", "V", "R", "P", "Skóre", "Body"], standings.map((r, i) => [
-      `${r.rank ?? i + 1}. ${!r.unresolved && decided && i < 3 ? ["ZLATO", "STRIEBRO", "BRONZ"][i] + " / " : ""}${r.name}${r.unresolved ? " (nerozhodnuté)" : ""}`,
+      `${r.rank ?? i + 1}. ${!r.withdrawn && !r.unresolved && decided && i < 3 ? ["ZLATO", "STRIEBRO", "BRONZ"][i] + " / " : ""}${r.name}${r.withdrawn ? " (odstúpil)" : r.unresolved ? " (nerozhodnuté)" : ""}`,
       String(r.played), String(r.wins), String(r.draws), String(r.losses), `${r.scored}:${r.conceded}`, String(r.points),
     ]), [91, 12, 12, 12, 12, 23, 16]);
   }
@@ -104,9 +108,12 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
     heading(label);
     table(["#", "Čas / Ihrisko", "Zápas", "Výsledok"], selected.map((m) => [String(m.match_number), `${m.starts_at.slice(0, 5)} / ${m.field_number}`,
       `${m.resolved_home_name ?? m.home_team_name ?? m.home_source ?? "Neurčený tím"} - ${m.resolved_away_name ?? m.away_team_name ?? m.away_source ?? "Neurčený tím"}`,
-      m.status === "finished" && m.home_score !== null && m.away_score !== null ? `${m.home_score} : ${m.away_score}` : "- : -",
+      matchOutcomeLabel(m),
     ]), [10, 30, 116, 22]);
   }
+  const exceptional = matches.filter(m=>m.outcome_reason);
+  if (exceptional.length) { heading("Kontumácie a anulované zápasy"); for (const m of exceptional) text(`#${m.match_number}: ${matchOutcomeLabel(m)}. ${m.outcome_reason}`,8); }
+  if (incidents?.events.length) { heading("História mimoriadnych situácií"); for (const e of incidents.events) text(`${e.action === "reinstate" ? "Obnovenie účasti: " + e.target : e.action === "withdraw" ? "Odstúpenie: " + e.target : e.action === "restore" ? "Zrušenie kontumácie" : e.action === "automatic" ? "Automatické rozhodnutie po odstúpení" : "Kontumácia"}: ${e.reason}`,8); for (const e of incidents.events) for (const m of e.changes ?? []) text(`#${m.number}: ${m.before_home ?? "–"}:${m.before_away ?? "–"} → ${m.outcome === "void" ? "anulované, bez bodov" : `${m.home_score ?? "–"}:${m.away_score ?? "–"}`} ${m.home ?? ""} - ${m.away ?? ""}`,8); }
   const url = `${siteUrl.replace(/\/$/, "")}/turnaje/${encodeURIComponent(tournament.slug)}`;
   heading("Aktuálne výsledky online"); text(url, 8);
   if (!complete || !lockedAt) text("Výsledky nie sú potvrdené organizátorom. Poradie a výsledky sa môžu zmeniť.", 9);

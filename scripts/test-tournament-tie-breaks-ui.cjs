@@ -14,7 +14,7 @@ function load(file,stubs={}) {
 const calc=load('lib/tournament-plan-calculations.ts');
 const noop=async()=>{};
 const {TournamentTieDecisions}=load('components/tournament-tie-decisions.tsx',{'@/lib/tournament-plan-calculations':calc,'@/app/turnaje/[slug]/tie-actions':{decideTie:noop}});
-const {TournamentPlan}=load('components/tournament-plan.tsx',{'@/lib/tournament-plan-calculations':calc,'@/lib/tournament-ranking':load('lib/tournament-ranking.ts'),'@/app/turnaje/[slug]/actions':{saveMatchScore:noop,setMatchStream:noop,swapGroupTeams:noop}});
+const {TournamentPlan}=load('components/tournament-plan.tsx',{'@/lib/tournament-plan-calculations':calc,'@/lib/tournament-incidents':load('lib/tournament-incidents.ts'),'@/lib/tournament-ranking':load('lib/tournament-ranking.ts'),'@/app/turnaje/[slug]/actions':{saveMatchScore:noop,setMatchStream:noop,swapGroupTeams:noop}});
 const group={id:'a',code:'A',name:'Skupina A',sort_order:1,ranking_rule:'head_to_head',ranking_version:'version',teams:['Alpha','Beta'].map((team_name,i)=>({id:String(i),group_id:'a',slot_number:i+1,team_name}))};
 const matches=[{id:'m',group_id:'a',phase:'group',round_number:1,match_number:1,starts_at:'09:00',field_number:1,home_team_name:'Alpha',away_team_name:'Beta',resolved_home_name:'Alpha',resolved_away_name:'Beta',home_score:0,away_score:0,status:'finished'}];
 const renderPanel=(groups,ms=matches)=>renderToStaticMarkup(React.createElement(TournamentTieDecisions,{slug:'cup',groups,matches:ms,locked:false}));

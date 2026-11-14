@@ -31,9 +31,12 @@ export async function updateTournament(formData: FormData) {
   if (teamNames.length > capacity) throw new Error("Počet vybraných tímov je vyšší než kapacita turnaja.");
   const format = resolveTournamentFormat(formData, { teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration });
   const { gameSystem, qualifiers, thirdPlace } = format;
+  const withdrawalRule = String(formData.get("withdrawalRule") ?? "keep");
+  const forfeitScore = Number(formData.get("forfeitScore") ?? 3);
+  if (!["keep","annul"].includes(withdrawalRule) || !Number.isInteger(forfeitScore) || forfeitScore < 1 || forfeitScore > 999) throw new Error("Skontrolujte pravidlá kontumácie a odstúpenia.");
   const rankingRule = String(formData.get("rankingRule") ?? "head_to_head");
   if (!["head_to_head","overall","legacy"].includes(rankingRule)) throw new Error("Vyberte pravidlá rovnosti bodov.");
-  const plan = { ...createTournamentPlan({ teamNames, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem, groupSizes: format.groupSizes, finalMode: format.finalMode, qualifiersPerGroup: qualifiers ?? undefined, thirdPlaceMatch: thirdPlace }), ranking_rule: rankingRule, format_settings: format.formatSettings, preferred_end: format.preferredEnd };
+  const plan = { ...createTournamentPlan({ teamNames, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem, groupSizes: format.groupSizes, finalMode: format.finalMode, qualifiersPerGroup: qualifiers ?? undefined, thirdPlaceMatch: thirdPlace }), ranking_rule: rankingRule, withdrawal_rule: withdrawalRule, forfeit_score: forfeitScore, format_settings: format.formatSettings, preferred_end: format.preferredEnd };
   const supabase = await createClient(); const { data: auth } = await supabase.auth.getClaims(); if (!auth?.claims?.sub) redirect("/prihlasenie");
   const { error } = await supabase.rpc("update_tournament_with_location", { p_slug: slug, p_name: name, p_sport: sport, p_category: category, p_event_date: date, p_place: place,
     p_country: country, p_region: region, p_surface: surface,
@@ -41,6 +44,8 @@ export async function updateTournament(formData: FormData) {
     p_club_ids: clubIds, p_custom_teams: customTeams, p_start_time: startTime, p_turnover_minutes: 3, p_schedule_slot_minutes: Math.ceil((duration + 3) / 5) * 5,
     p_has_lunch_break: lunchBreak, p_lunch_break_start: lunchStart, p_lunch_break_duration: lunchDuration, p_game_system: gameSystem,
     p_qualifiers_per_group: qualifiers, p_third_place_match: thirdPlace, p_plan: plan, p_confirm_reset: formData.get("confirmReset") === "yes" });
+  if (error?.message.includes("WITHDRAWAL_ROSTER_LOCKED")) throw new Error("Po odstúpení tímu nemožno prepísať obsadenie ani vytvoriť nový rozpis. História odstúpenia musí zostať zachovaná.");
+  if (error?.message.includes("INCIDENT_RULES_FROZEN")) throw new Error("Pravidlá kontumácie a odstúpenia sú po prvom výsledku uzamknuté.");
   if (error?.message.includes("RANKING_RULE_FROZEN")) throw new Error("Pravidlá rovnosti bodov sú po prvom výsledku uzamknuté.");
   if (error?.message.includes("Capacity below participating teams")) throw new Error("Kapacitu nemožno znížiť pod počet prihlásených alebo vybraných tímov.");
   if (error?.message.includes("RESET_CONFIRMATION_REQUIRED")) throw new Error("Zmena rozpisu vyžaduje potvrdenie vymazania výsledkov.");
