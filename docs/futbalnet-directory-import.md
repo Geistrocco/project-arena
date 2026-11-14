@@ -38,3 +38,11 @@ Adresár klubov sa načítava po 500 riadkoch v stabilnom poradí podľa ID a a�
 5. Dátové zápisy prebiehajú po dávkach s `ON CONFLICT`, nie mazaním adresára. `futbalnet-team-import.sql` je šablóna pre overený JSON; oddeľovač nesmie byť v dátach.
 
 Kontroly: `pnpm check`, produkčný build, `test-club-directory.cjs`, `test-futbalnet-import.cjs`, `test-futbalnet-preparation.py`, interakčné testy živého vyhľadávania a regresie režimov účtu a rodinných pozvánok. Test importu overuje opakovanie bez duplicít aj zachovanie pôvodného ID, väzieb hráčov/trénerov a neaktívneho stavu.
+
+## Vyhľadávanie a uloženie pozvaných klubov na turnaj
+
+Turnajový výber používa rovnaké porovnávanie častí slov bez diakritiky ako klubové centrum, vrátane skráteného názvu a mesta. Od dvoch znakov ukáže počet všetkých zhôd, prvých 40 možností v posúvateľnom zozname a tlačidlo na ďalšie. Pôvodných sedem položiek skrývalo ďalšie nájdené kluby bez upozornenia. Zadanie vlastného tímu je samostatná rozbaľovacia voľba.
+
+Vytvorenie aj úprava turnaja overujú vybrané ID a názvy vo verejnom aktívnom adresári v databáze. Nepoužívajú starý statický výber a akceptujú importované identity s prefixom `sportnet:`, bodkami a podčiarkovníkmi. Presný výber aj poradie názvov vstupujú do rozpisu a uložených pozvaných tímov. Neplatný/nedostupný klub vyvolá chybu namiesto tichého vynechania. Už vybraný, medzičasom nedostupný klub sa vo formulári zachová s výzvou na odstránenie/náhradu; nezmizne pri obyčajnej úprave turnaja.
+
+Overenie: `test-tournament-club-picker.cjs` kontroluje živé návrhy, diakritiku, poradie slov, zhodu za siedmou položkou, ďalšie výsledky, pridanie/odobratie a zachovanie ID. `test-tournament-clubs.cjs` overuje vytvorenie aj úpravu s importovanými ID, názvy v rozpise, kapacitu, duplicity, nedostupný klub a chybu databázy. Testy neposielajú skutočné pozvánky a nevytvárajú turnaje.

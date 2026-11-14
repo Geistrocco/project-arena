@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { clubsById } from "@/data/clubs";
+import {tournamentClubIds,tournamentClubNames} from "@/lib/tournament-clubs";
 import { createTournamentPlan } from "@/lib/tournament-plan";
 import { createTennisPlan } from "@/lib/tennis-plan";
 import { resolveTournamentFormat } from "@/lib/tournament-format";
@@ -20,14 +20,15 @@ export async function updateTournament(formData: FormData) {
   const country = text("country", 20); const region = text("region", 60); const surface = text("surface", 60);
   const startTime = text("startTime", 5); const lunchBreak = formData.get("lunchBreak") === "on"; const lunchStart = lunchBreak ? text("lunchStart", 5) : null; const lunchDuration = lunchBreak ? number("lunchDuration") : null;
   const tournamentType = types[text("type", 30)]; const visibility = visibilities[text("visibility", 40)];
-  const clubIds = formData.getAll("clubIds").map(String).filter((id) => /^[a-z0-9][a-z0-9-]{0,99}$/i.test(id));
+  const clubIds = tournamentClubIds(formData);
   const customTeams = formData.getAll("customTeams").map((item) => String(item).trim().slice(0, 180)).filter((item) => item.length >= 2);
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || name.length < 3 || sport.length < 2 || !category || place.length < 2 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Skontrolujte základné údaje turnaja.");
   if (!isCountry(country) || !isRegion(country, region) || !isSurface(surface)) throw new Error("Vyberte krajinu, kraj a povrch turnaja.");
   if (!Number.isInteger(capacity) || capacity < 2 || capacity > 256 || !Number.isInteger(fields) || fields < 1 || fields > 32 || !Number.isInteger(duration) || duration < 1 || duration > 240 || !Number.isFinite(fee) || fee < 0 || fee > 100000) throw new Error("Skontrolujte formát turnaja.");
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) || (lunchBreak && (!lunchStart || !/^([01]\d|2[0-3]):[0-5]\d$/.test(lunchStart) || lunchDuration === null || !Number.isInteger(lunchDuration) || lunchDuration < 15 || lunchDuration > 180))) throw new Error("Skontrolujte časový plán turnaja.");
   if (!tournamentType || !visibility) throw new Error("Skontrolujte typ a viditeľnosť turnaja.");
-  const selectedNames = clubIds.map((id) => clubsById.get(id)?.name).filter((item): item is string => Boolean(item));
+  const supabase = await createClient(); const { data: auth } = await supabase.auth.getClaims(); if (!auth?.claims?.sub) redirect("/prihlasenie");
+  const selectedNames = await tournamentClubNames(supabase,clubIds);
   const teamNames = [...new Set([...selectedNames, ...customTeams])];
   if (teamNames.length > capacity) throw new Error("Počet vybraných tímov je vyšší než kapacita turnaja.");
   if (sport === "Tenis" && clubIds.length) throw new Error("V tenisovom turnaji zadajte hráčov alebo dvojice, nie futbalové kluby.");
@@ -39,7 +40,6 @@ export async function updateTournament(formData: FormData) {
   const rankingRule = String(formData.get("rankingRule") ?? "head_to_head");
   if (!["head_to_head","overall","legacy"].includes(rankingRule)) throw new Error("Vyberte pravidlá rovnosti bodov.");
   const plan = { ...(format.tennis ? createTennisPlan({ teamNames, teamCount:capacity, fieldCount:fields, matchMinutes:duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem },format.tennis) : createTournamentPlan({ teamNames, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem, groupSizes: format.groupSizes, finalMode: format.finalMode, qualifiersPerGroup: qualifiers ?? undefined, thirdPlaceMatch: thirdPlace })), ranking_rule: rankingRule, withdrawal_rule: withdrawalRule, forfeit_score: forfeitScore, format_settings: format.formatSettings, preferred_end: format.preferredEnd };
-  const supabase = await createClient(); const { data: auth } = await supabase.auth.getClaims(); if (!auth?.claims?.sub) redirect("/prihlasenie");
   const { error } = await supabase.rpc("update_tournament_with_location", { p_slug: slug, p_name: name, p_sport: sport, p_category: category, p_event_date: date, p_place: place,
     p_country: country, p_region: region, p_surface: surface,
     p_capacity: capacity, p_playing_fields: fields, p_match_duration: duration, p_fee: fee, p_tournament_type: tournamentType, p_team_visibility: visibility,
