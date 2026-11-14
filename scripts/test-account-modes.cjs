@@ -7,6 +7,7 @@ async function main(){
  const client={auth:{getClaims:async()=>({data:{claims:{sub:'user',email:'parent@example.com'}}})},rpc:async()=>({data:[]}),from:()=>{const q={select:()=>q,eq:()=>q,order:()=>q,limit:()=>q,maybeSingle:async()=>({data:null}),then:resolve=>Promise.resolve({data:[],count:0}).then(resolve)};return q;}};
  let mode='parent';const stubs={'next/link':{__esModule:true,default:({children,...props})=>React.createElement('a',props,children)},'next/navigation':{redirect:()=>{throw Error('redirect')},useRouter:()=>({push:()=>{},refresh:()=>{}})},'@/lib/supabase/server':{createClient:async()=>client},'@/app/ucet/actions':actions,'@/lib/account-context':{getAccountContext:async()=>({mode})}};
  stubs['@/components/family-team-joining']={StaffJoinRequests:()=>null,TeamJoinLinkManager:()=>null};stubs['@/lib/family-team-joining']=load('lib/family-team-joining.ts');
+ stubs['@/components/player-request-alert']={PlayerRequestAlert:()=>null};
  stubs['@/components/team-access-picker']={TeamAccessPicker:()=>null};
  const page=load('app/ucet/page.tsx',stubs).default;
  const render=async()=>renderToStaticMarkup(await page({searchParams:Promise.resolve({})}));

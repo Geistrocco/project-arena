@@ -1,10 +1,12 @@
+import {PlayerRequestAlert} from "@/components/player-request-alert";
+import {createClient} from "@/lib/supabase/server";
 import { getAccountContext } from "@/lib/account-context";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowIcon, UsersIcon } from "@/components/icons";
 import { getMyTeams } from "@/lib/my-teams";
 
-const staffRoleNames = { coach: "Tréner", manager: "Vedúci tímu", club_admin: "Administrátor klubu" } as const;
+const staffRoleNames = { coach: "Tréner", manager: "Vedúci tímu", club_admin: "Administrátor klubu", platform_admin: "Administrátor platformy" } as const;
 
 export const metadata = { title: "Môj tím" };
 
@@ -13,9 +15,13 @@ export default async function MyTeamPage() {
   const { userId, teams } = await getMyTeams();
   if (!userId) redirect("/prihlasenie");
   if (teams.length === 1) redirect(`/timy/${teams[0].id}/prehlad`);
+  const supabase=await createClient();
+  const {data:joinSummary,error:joinError}=await supabase.rpc("get_my_team_join_summary");
 
   return <section className="mx-auto max-w-5xl px-5 py-12 sm:py-16">
     <div><p className="eyebrow">Moje tímy</p><h1 className="mt-2 text-3xl font-extrabold text-ink">Môj tím</h1><p className="mt-2 max-w-2xl text-slate-600">Kalendár, nominácie, hráči a všetky dôležité tímové informácie na jednom mieste.</p></div>
+
+    {!joinError&&Number(joinSummary?.total)>0&&<div className="mt-5"><PlayerRequestAlert count={Number(joinSummary.total)}/></div>}
 
     {teams.length > 1 && <div className="mt-8 grid gap-5 sm:grid-cols-2">{teams.map((team) => <Link className="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-arena-300 hover:shadow-md" href={`/timy/${team.id}/prehlad`} key={team.id}>
       <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-extrabold uppercase tracking-wider text-arena-700">{team.staffRole ? staffRoleNames[team.staffRole] : "Rodič"}</p><h2 className="mt-2 text-xl font-extrabold text-ink">{team.name}</h2><p className="mt-1 text-sm text-slate-600">{team.category} · sezóna {team.season}</p></div><span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-arena-50 text-arena-700"><UsersIcon /></span></div>

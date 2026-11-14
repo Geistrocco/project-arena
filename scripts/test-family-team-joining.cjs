@@ -5,7 +5,7 @@ async function main(){const db=new PGlite();await db.exec(`create role anon;crea
 create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
 create function auth.uid() returns uuid language sql as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
 create function auth.jwt() returns jsonb language sql as $$select jsonb_build_object('email',(select email from auth.users where id=auth.uid()))$$;
-create function private.is_platform_admin(p_uid uuid) returns boolean language sql as $$select false$$;
+create function private.is_platform_admin(p_uid uuid) returns boolean language sql as $$select p_uid='00000000-0000-0000-0000-000000000005'::uuid and coalesce(current_setting('test.admin',true)='yes',false)$$;
 create table clubs(id text primary key,name text,city text,status text default 'active');
 create table club_teams(id uuid primary key,club_id text references clubs(id),name text,category text,season text,status text default 'active');
 create table team_memberships(team_id uuid references club_teams(id),user_id uuid references auth.users(id),role text,primary key(team_id,user_id));
@@ -18,10 +18,16 @@ await db.exec(fs.readFileSync('supabase/migrations/20260908203410_add_team_playe
 await db.exec("alter table team_players add column status text default 'active',add column inactive_at timestamptz;");
 await db.exec(fs.readFileSync('supabase/migrations/20261114152945_family_team_joining.sql','utf8'));
 await db.exec(fs.readFileSync('supabase/migrations/20261114163417_live_club_search.sql','utf8'));
+await db.exec(fs.readFileSync('supabase/migrations/20261114173940_visible_player_requests.sql','utf8'));
 await db.exec(`insert into player_profiles(id,full_name,birth_date,created_by) values('${id(201)}','Syn A','2014-05-01','${id(1)}'),('${id(202)}','Syn B','2016-06-01','${id(1)}');insert into player_guardians(player_id,guardian_user_id) values('${id(201)}','${id(1)}'),('${id(202)}','${id(1)}'),('${id(201)}','${id(2)}');`);
 const scalar=async(q,p=[])=>Object.values((await db.query(q,p)).rows[0])[0];const user=async n=>db.query("select set_config('test.uid',$1,false)",[n?id(n):'']);
 const request=(team,child)=>scalar('select request_player_team_join($1,$2,$3)',[id(team),id(child),'Prosím o prijatie dieťaťa.']);
 await user(1);const r=await request(101,201);assert.equal(Number(await scalar('select count(*) from team_players')),0,'request does not grant team access');
+assert.equal((await scalar('select get_my_team_join_summary()')).total,0,'ordinary parent has no staff notification');
+await user(3);assert.equal((await scalar('select get_my_team_join_summary()')).total,1);assert.equal((await scalar('select get_staff_join_requests($1,0)',[id(101)])).requests[0].player_name,'Syn A');
+await user(4);assert.equal((await scalar('select get_my_team_join_summary()')).total,0);await assert.rejects(()=>scalar('select get_staff_join_requests($1,0)',[id(101)]),/NOT_AUTHORIZED/);
+await user(5);await db.exec("select set_config('test.admin','yes',false)");assert.equal((await scalar('select get_my_team_join_summary()')).total,1,'platform owner sees the same pending request as training management');assert.equal((await scalar('select get_family_join_context()')).staff_requests.length,1);assert.equal((await scalar('select get_staff_join_requests($1,0)',[id(101)])).total,1);await db.exec("select set_config('test.admin','no',false)");
+await db.query('insert into team_memberships values($1,$2,$3)',[id(101),id(1),'coach']);await user(1);assert.equal((await scalar('select get_my_team_join_summary()')).total,1,'being the child guardian does not hide coach requests');await db.query('delete from team_memberships where team_id=$1 and user_id=$2',[id(101),id(1)]);
 await user(2);await assert.rejects(()=>request(101,201),/REQUEST_PENDING/,'another guardian cannot duplicate a pending request');
 await user(5);await assert.rejects(()=>request(101,201),/PLAYER_NOT_AUTHORIZED/);assert.deepEqual((await scalar('select get_family_join_context()')).players,[]);
 await user(1);await assert.rejects(()=>scalar('select create_team_join_link($1,$2)',[id(101),'a'.repeat(64)]),/NOT_AUTHORIZED/);
@@ -43,5 +49,8 @@ await scalar('select create_team_join_link($1,$2)',[id(101),'c'.repeat(64)]);awa
 await scalar('select create_team_join_link($1,$2)',[id(101),'d'.repeat(64)]);await db.query('delete from team_memberships where team_id=$1 and user_id=$2',[id(101),id(3)]);assert.equal(await scalar('select get_team_join_link($1)',['d'.repeat(64)]),null,'removed coach cannot leave valid invitations');
 await user(1);await assert.rejects(()=>scalar('select create_player_for_guardian($1,$2)',[' syn   a ','2014-05-01']),/PLAYER_ALREADY_EXISTS/);assert.equal(Number(await scalar('select count(*) from player_profiles')),2);
 assert.equal(await scalar("select has_table_privilege('authenticated','team_join_links','select')"),false);assert.equal(await scalar("select has_table_privilege('authenticated','team_join_requests','insert')"),false);assert.equal(await scalar("select has_function_privilege('anon','accept_team_join_link(text,uuid,boolean)','execute')"),false);assert.equal(Number(await scalar('select count(*) from team_memberships where user_id=$1',[id(1)])),0,'joining a child never grants staff privileges');
-await db.close();console.log('PASS: requests without access, two sons, guardian/staff/verified-email boundaries, single-use hashed links, cancellation, expiry, revocation, email compatibility and duplicate-profile protection');}
+await db.query('insert into team_memberships values($1,$2,$3)',[id(101),id(3),'coach']);
+await db.exec(`with children as (insert into player_profiles(full_name,created_by) select 'Žiadosť '||i,'${id(1)}'::uuid from generate_series(1,105) i returning id) insert into team_join_requests(team_id,player_id,requested_by) select '${id(101)}'::uuid,id,'${id(1)}'::uuid from children`);
+await user(3);const pages=await Promise.all([0,50,100].map(offset=>scalar('select get_staff_join_requests($1,$2)',[id(101),offset])));assert.deepEqual(pages.map(p=>p.requests.length),[50,50,5]);assert.ok(pages.every(p=>p.total===105));assert.equal(new Set(pages.flatMap(p=>p.requests.map(r=>r.id))).size,105);assert.equal((await scalar('select get_my_team_join_summary()')).total,105);await assert.rejects(()=>scalar('select get_staff_join_requests(null,-1)'),/INVALID_PAGE/);assert.equal(await scalar("select has_function_privilege('anon','get_staff_join_requests(uuid,integer)','execute')"),false);assert.equal(await scalar("select has_function_privilege('anon','get_my_team_join_summary()','execute')"),false);
+await db.close();console.log('PASS: requests without access, two sons, guardian/staff/verified-email boundaries, single-use hashed links, cancellation, expiry, revocation, email compatibility, duplicate-profile protection, coach-parent/admin request visibility and complete pagination');}
 main().catch(e=>{console.error(e.message,e.detail||'',e.where||'');process.exitCode=1});

@@ -1,3 +1,4 @@
+import {PlayerRequestAlert} from "@/components/player-request-alert";
 import {TeamAccessPicker} from "@/components/team-access-picker";
 import {StaffJoinRequests,TeamJoinLinkManager} from "@/components/family-team-joining";
 import {joiningError,type FamilyJoinContext,type StaffJoinLink} from "@/lib/family-team-joining";
@@ -38,7 +39,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const teamIds=[...new Set([...(memberships??[]).map(m=>m.team_id),...(teamPlayerInvitations??[]).map(i=>i.team_id),...(playerTeamLinks??[]).map(p=>p.team_id)])];
   const {data:teams}=teamIds.length?await supabase.from("club_teams").select("id,name,category,season").in("id",teamIds).eq("status","active"):{data:[]};
   const players=visiblePlayers?.filter(player=>guardianLinks?.some(link=>link.player_id===player.id&&link.guardian_user_id===userId))??[];
-  const joinResult=await supabase.rpc("get_family_join_context");
+  const [joinResult,joinSummary]=await Promise.all([supabase.rpc("get_family_join_context"),supabase.rpc("get_my_team_join_summary")]);
   const familyJoin=(joinResult.data??null) as FamilyJoinContext|null;
   const joinLinks=await Promise.all((isCoach?memberships??[]:[]).map(async m=>{const r=await supabase.rpc("get_staff_team_join_links",{p_team:m.team_id});return {teamId:m.team_id,links:(r.data??[]) as StaffJoinLink[],error:r.error};}));
   const joinLinksByTeam=new Map(joinLinks.map(r=>[r.teamId,r]));
@@ -64,6 +65,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
         <p className="eyebrow">Môj účet</p>
         <h1 className="mt-2 text-3xl font-extrabold text-ink">Vitajte{metadata?.full_name ? `, ${metadata.full_name}` : ""}</h1>
+        {!joinSummary.error&&Number(joinSummary.data?.total)>0&&<div className="mt-4"><PlayerRequestAlert count={Number(joinSummary.data.total)}/></div>}
         <p className="mt-3 text-slate-600">Prihlásený účet: {email}</p>
         <div className="mt-8 flex flex-wrap gap-3">
           {isCoach && <Link className="btn-primary" href="/vytvorit-turnaj">Vytvoriť turnaj</Link>}

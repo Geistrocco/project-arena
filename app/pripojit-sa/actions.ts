@@ -19,7 +19,7 @@ export async function familyTeamAction(_previous:JoinState,form:FormData):Promis
  else if(op==="create_player") {const name=String(form.get("fullName")??"").trim().replace(/\s+/g," ");const birth=String(form.get("birthDate")??"");if(name.length<2||name.length>120||(birth&&!/^\d{4}-\d{2}-\d{2}$/.test(birth)))return {error:"Skontroluj meno a dátum narodenia dieťaťa."};rpc="create_player_for_guardian";params={p_full_name:name,p_birth_date:birth||null};}
  else return {error:"Neplatná požiadavka."};
  try{const supabase=await createClient();const {data,error}=await supabase.rpc(rpc,params);if(error)return {error:error.code==="23505"?"Pozvánka alebo žiadosť už existuje.":joiningError(error.message)};
- for(const p of ["/ucet","/pripojit-sa","/moj-tim"])revalidatePath(p);
+ for(const p of ["/ucet","/pripojit-sa","/moj-tim","/ziadosti-hracov"])revalidatePath(p);
  if(uuid(team))revalidatePath(`/timy/${team}/prehlad`);
  if(/^[a-f0-9]{64}$/.test(token))revalidatePath(`/pozvanka/${token}`);
  const back=authReturnPath(form.get("returnTo"));if(back!=="/ucet")revalidatePath(back.split("?")[0]);
