@@ -40,7 +40,7 @@ const v0=await scalar('select private.incident_version($1)',[f.tid]);
 let p=await preview('forfeit',f.matches[1].id,'away');assert.equal(p.changes.length,1);assert.equal(p.changes[0].away_score,3);assert.equal(await scalar('select private.incident_version($1)',[f.tid]),v0,'preview is fully rolled back');assert.equal(Number(await scalar('select count(*) from tournament_incident_events')),0);
 await db.exec(`select set_config('test.uid','${id(2)}',false)`);await assert.rejects(()=>confirm(p),/NOT_ALLOWED/);await db.exec(`select set_config('test.uid','${id(1)}',false)`);
 await confirm(p);await assert.rejects(()=>confirm(p),/INCIDENT_CHANGED/);
-assert.equal(await scalar('select outcome from tournament_matches where id=$1',[f.matches[1].id]),'forfeit');
+assert.equal(await scalar('select outcome from tournament_matches where id=$1',[f.matches[1].id]),'forfeit');const noOp=await preview('forfeit',f.matches[1].id,'away');await confirm(noOp);await assert.rejects(()=>confirm(noOp),/INCIDENT_CHANGED/,'even a repeated same-score decision consumes its preview');
 await assert.rejects(()=>db.query('select update_tournament_match_score($1,4,0)',[f.matches[1].id]),/SPECIAL_RESULT/);
 await confirm(await preview('restore',f.matches[1].id));assert.equal(await scalar('select status from tournament_matches where id=$1',[f.matches[1].id]),'scheduled');
 p=await preview('withdraw','Alpha');assert.equal(p.changes.length,1);assert.equal(Number(await scalar('select count(*) from tournament_withdrawals')),0);await confirm(p);

@@ -284,6 +284,7 @@ create trigger settle_withdrawn_score after update of home_score,away_score,stat
 create function private.incident_version(p_tid uuid)
 returns text language sql stable set search_path='' as $$
  select md5(jsonb_build_array(t.withdrawal_rule,t.forfeit_score,t.ranking_rule,
+ (select jsonb_agg(e.id order by e.id) from public.tournament_incident_events e where tournament_id=t.id),
  (select jsonb_agg(jsonb_build_array(m.id,m.group_id,m.home_team_name,m.away_team_name,m.home_source,m.away_source,m.home_score,m.away_score,m.status,m.outcome,m.outcome_reason) order by m.id) from public.tournament_matches m where tournament_id=t.id),
  (select jsonb_agg(to_jsonb(w) order by w.team_name) from public.tournament_withdrawals w where tournament_id=t.id),
  (select jsonb_agg(jsonb_build_array(s.id,s.group_id,s.team_name,s.slot_number) order by s.id) from public.tournament_group_teams s where tournament_id=t.id),
