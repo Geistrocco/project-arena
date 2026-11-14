@@ -1,3 +1,4 @@
+import { rankingLabels } from "@/lib/tournament-ranking";
 import { jsPDF } from "jspdf";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -47,6 +48,7 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
   text(`${tournament.displayDate} | ${tournament.city} | ${tournament.sport} | ${tournament.category}`);
   text(lockedAt && complete ? "POTVRDENÉ KONEČNÉ VÝSLEDKY" : "PRIEBEŽNÉ VÝSLEDKY", 12);
   if (complete && !lockedAt) text("Všetky zápasy sú odohrané. Čaká sa na potvrdenie organizátorom.", 9);
+  text(`Rovnosť bodov: ${rankingLabels[groups[0]?.ranking_rule ?? "legacy"]}`, 8);
   text(`Vytvorené: ${created}`, 8);
   const singleFinal = groups.length === 1 && matches.every((m) => m.phase === "group");
   const placements = new Map<number, string>();
@@ -61,12 +63,12 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
     const finalGroup = groups.find((g) => g.code === "GOLD") ?? (singleFinal ? groups[0] : undefined);
     if (finalGroup) {
       const rows = calculateStandings(finalGroup, matches);
-      const tied = rows.some((r, i) => i > 0 && r.points === rows[i - 1].points && r.difference === rows[i - 1].difference && r.scored === rows[i - 1].scored);
+      const tied = rows.some((r, i) => r.unresolved || ((finalGroup.ranking_rule ?? "legacy") === "legacy" && i > 0 && r.points === rows[i - 1].points && r.difference === rows[i - 1].difference && r.scored === rows[i - 1].scored));
       if (!tied) rows.forEach((r, i) => placements.set(i + 1, r.name));
       const silver = groups.find((g) => g.code === "SILVER");
       if (silver && !singleFinal) {
         const silverRows = calculateStandings(silver, matches);
-        const silverTied = silverRows.some((r, i) => i > 0 && r.points === silverRows[i - 1].points && r.difference === silverRows[i - 1].difference && r.scored === silverRows[i - 1].scored);
+        const silverTied = silverRows.some((r, i) => r.unresolved || ((silver.ranking_rule ?? "legacy") === "legacy" && i > 0 && r.points === silverRows[i - 1].points && r.difference === silverRows[i - 1].difference && r.scored === silverRows[i - 1].scored));
         if (!silverTied) silverRows.forEach((r, i) => placements.set(rows.length + i + 1, r.name));
       }
     } else {
@@ -88,9 +90,10 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
     const isFinal = group.code === "GOLD" || singleFinal;
     const decided = complete && isFinal && groupMatches.length > 0 && placements.has(1);
     heading(`${group.name}${decided ? " - konečné poradie" : " - tabuľka"}`);
+    if (group.tie_reason) text(`Rozhodnutie organizátora: ${group.tie_reason}`,9);
     const standings = calculateStandings(group, matches);
     table(["# / Tím", "Z", "V", "R", "P", "Skóre", "Body"], standings.map((r, i) => [
-      `${i + 1}. ${decided && i < 3 ? ["ZLATO", "STRIEBRO", "BRONZ"][i] + " / " : ""}${r.name}`,
+      `${r.rank ?? i + 1}. ${!r.unresolved && decided && i < 3 ? ["ZLATO", "STRIEBRO", "BRONZ"][i] + " / " : ""}${r.name}${r.unresolved ? " (nerozhodnuté)" : ""}`,
       String(r.played), String(r.wins), String(r.draws), String(r.losses), `${r.scored}:${r.conceded}`, String(r.points),
     ]), [91, 12, 12, 12, 12, 23, 16]);
   }
@@ -107,7 +110,7 @@ export async function createResultsPdf(tournament: Tournament, groups: PlanGroup
   const url = `${siteUrl.replace(/\/$/, "")}/turnaje/${encodeURIComponent(tournament.slug)}`;
   heading("Aktuálne výsledky online"); text(url, 8);
   if (!complete || !lockedAt) text("Výsledky nie sú potvrdené organizátorom. Poradie a výsledky sa môžu zmeniť.", 9);
-  else text("Uvádzame iba jednoznačne rozhodnuté miesta. Pri zhode bodov, rozdielu skóre a strelených gólov musí konečné poradie potvrdiť organizátor.", 9);
+  else text("Uvádzame iba jednoznačne rozhodnuté miesta. Úplne zhodné miesta sa zobrazia ako nerozhodnuté až do zdôvodneného rozhodnutia organizátora.", 9);
   const count = doc.getNumberOfPages();
   for (let page = 1; page <= count; page++) { doc.setPage(page); doc.setFontSize(8); doc.setTextColor(110); doc.text(`Tournio | ${created} | ${page} / ${count}`, 16, 288); }
   return new Uint8Array(doc.output("arraybuffer"));

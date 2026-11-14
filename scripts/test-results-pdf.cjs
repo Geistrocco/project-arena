@@ -13,7 +13,7 @@ function load(file, replacements = {}) {
   mod._compile(compiled, path.resolve(file)); return mod.exports;
 }
 const calculations = load("lib/tournament-plan-calculations.ts");
-const { createResultsPdf } = load("lib/tournament-results-pdf.ts", { "@/lib/tournament-plan-calculations": calculations });
+const { createResultsPdf } = load("lib/tournament-results-pdf.ts", { "@/lib/tournament-plan-calculations": calculations, "@/lib/tournament-ranking": load("lib/tournament-ranking.ts") });
 const teams = ["MŠK Senec", "ŠK Slovan Bratislava", "FC Spartak Trnava", "Mimoriadne dlhý názov mládežníckeho futbalového klubu Žilina a okolie"];
 const groups = Array.from({ length: 3 }, (_, i) => ({ id: String(i), code: String.fromCharCode(65 + i), name: `Skupina ${String.fromCharCode(65 + i)}`, sort_order: i, teams: teams.map((name, j) => ({ id: `${i}-${j}`, group_id: String(i), slot_number: j, team_name: name })) }));
 const matches = Array.from({ length: 60 }, (_, i) => ({ id: String(i), group_id: String(i % 3), phase: "group", round_number: i, match_number: i + 1, starts_at: "09:25:00", field_number: i % 3 + 1, home_team_name: teams[i % 4], away_team_name: teams[(i + 1) % 4], home_source: null, away_source: null, resolved_home_name: teams[i % 4], resolved_away_name: teams[(i + 1) % 4], home_score: i === 0 ? 0 : 2, away_score: 0, status: i === 59 ? "scheduled" : "finished" }));
