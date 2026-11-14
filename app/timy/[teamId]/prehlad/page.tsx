@@ -1,3 +1,5 @@
+import {StaffJoinRequests,TeamJoinLinkManager} from "@/components/family-team-joining";
+import type {FamilyJoinContext,StaffJoinLink} from "@/lib/family-team-joining";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowIcon, CalendarIcon, TrophyIcon, UsersIcon } from "@/components/icons";
@@ -32,6 +34,8 @@ export default async function TeamDashboardPage({ params }: { params: Promise<{ 
     supabase.rpc("get_team_chat_unread_count", { p_team_id: teamId }),
   ]);
   if (error) throw new Error("Tímový prehľad sa nepodarilo načítať.");
+  const [joinRequests,joinLinks]=team.staffRole?await Promise.all([supabase.rpc("get_family_join_context"),supabase.rpc("get_staff_team_join_links",{p_team:teamId})]):[{data:null,error:null},{data:[],error:null}];
+  const joinContext=joinRequests.data as FamilyJoinContext|null;
   const nominations = (data as Nomination[] | null) ?? [];
   const now = new Date().getTime();
   const upcoming = nominations
@@ -54,6 +58,11 @@ export default async function TeamDashboardPage({ params }: { params: Promise<{ 
       <DashboardCard href={`/timy/${teamId}`} icon={<UsersIcon />} title="Hráči" text={`${team.activePlayerCount} aktívnych hráčov`} />
       <DashboardCard href={canManage ? `/timy/${teamId}/kalendar#statistiky` : `/timy/${teamId}/kalendar`} icon={<ArrowIcon />} title={canManage ? "Dochádzka" : "Účasť"} text={canManage ? "Sezónne štatistiky hráčov" : "Potvrďte účasť svojho dieťaťa"} />
     </div>
+
+    {canManage && <div className="mt-6 space-y-5">
+      {joinRequests.error ? <p role="alert">Žiadosti sa nepodarilo načítať.</p> : <StaffJoinRequests requests={(joinContext?.staff_requests??[]).filter(request=>request.team_id===teamId)}/>}
+      <details className="rounded-2xl border border-slate-200 p-5"><summary className="cursor-pointer font-bold">Pozvať rodiča do tímu</summary><Link className="btn-secondary mt-4" href="/ucet#moje-timy">Poslať pozvanie e-mailom</Link>{joinLinks.error ? <p role="alert">Pozvánky sa nepodarilo načítať.</p> : <TeamJoinLinkManager team={{id:teamId,name:team.name,category:team.category,season:team.season}} links={(joinLinks.data??[]) as StaffJoinLink[]}/>}</details>
+    </div>}
 
     {!canManage && <div className="mt-6 rounded-2xl border border-arena-100 bg-arena-50 p-5"><p className="font-extrabold text-ink">Prehľad pre rodiča</p><p className="mt-1 text-sm text-slate-600">Vidíte kalendár, súpisku aj celú nomináciu tímu. Potvrdiť alebo odmietnuť môžete iba účasť svojho dieťaťa.</p></div>}
   </section>;

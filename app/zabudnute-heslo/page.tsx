@@ -1,5 +1,6 @@
 import { AuthForm } from "@/components/auth-form";
 
-export default function ForgotPasswordPage() {
-  return <AuthForm mode="forgot" />;
+export default async function ForgotPasswordPage({searchParams}:{searchParams:Promise<{next?:string}>}) {
+  const params=await searchParams;
+  return <AuthForm returnTo={params.next} mode="forgot" />;
 }

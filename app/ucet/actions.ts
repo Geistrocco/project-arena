@@ -1,5 +1,6 @@
 "use server";
 
+import {joiningError} from "@/lib/family-team-joining";
 import { getAccountContext } from "@/lib/account-context";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -28,7 +29,7 @@ export async function createPlayerProfile(formData: FormData) {
     p_full_name: fullName,
     p_birth_date: birthDate,
   });
-  if (error) throw new Error("Profil hráča sa nepodarilo vytvoriť.");
+  if (error) throw new Error(joiningError(error.message));
   revalidatePath("/ucet");
 }
 
@@ -115,11 +116,14 @@ export async function respondToTeamPlayerInvitation(formData: FormData) {
   const invitationId = String(formData.get("invitationId") ?? "");
   const playerId = String(formData.get("playerId") ?? "");
   const accept = String(formData.get("decision") ?? "") === "accept";
+  if (accept && formData.get("confirmed")!=="yes") throw new Error("Potvrď správne dieťa a kategóriu.");
   if (!/^[0-9a-f-]{36}$/i.test(invitationId) || (accept && !/^[0-9a-f-]{36}$/i.test(playerId))) throw new Error("Vyberte platného hráča.");
   const { supabase } = await requireUser();
   const { error } = await supabase.rpc("respond_to_team_player_invitation", { p_invitation_id: invitationId, p_player_id: accept ? playerId : null, p_accept: accept });
-  if (error) throw new Error("Pozvanie sa nepodarilo spracovať.");
+  if (error) throw new Error(joiningError(error.message));
   revalidatePath("/ucet");
+  revalidatePath("/moj-tim");
+  revalidatePath("/pripojit-sa");
   redirect(`/ucet?stav=${accept ? "hrac-pridany-do-timu" : "timove-pozvanie-odmietnute"}#timove-pozvania`);
 }
 
