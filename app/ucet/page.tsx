@@ -1,3 +1,5 @@
+import {StaffJoinRequests,TeamJoinLinkManager} from "@/components/family-team-joining";
+import {joiningError,type FamilyJoinContext,type StaffJoinLink} from "@/lib/family-team-joining";
 import { getAccountContext } from "@/lib/account-context";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -17,7 +19,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const email = typeof data.claims.email === "string" ? data.claims.email : "";
   const metadata = data.claims.user_metadata as { full_name?: string } | undefined;
   const userId = typeof data.claims.sub === "string" ? data.claims.sub : "";
-  const [{ data: role }, { data: consentEvents }, { data: teams }, { data: claims }, { data: memberships }, { data: teamRequests }, { data: players }, { data: guardianLinks }, { data: guardianInvitations }, { data: teamPlayerInvitations }, { data: managedRoster }, { data: playerTeamLinks }, { data: myTournaments, count: myTournamentCount }] = await Promise.all([
+  const [{ data: role }, { data: consentEvents }, { data: teams }, { data: claims }, { data: memberships }, { data: teamRequests }, { data: visiblePlayers }, { data: guardianLinks }, { data: guardianInvitations }, { data: teamPlayerInvitations }, { data: managedRoster }, { data: playerTeamLinks }, { data: myTournaments, count: myTournamentCount }] = await Promise.all([
     supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
     supabase.from("marketing_consent_events").select("granted").eq("user_id", userId).order("recorded_at", { ascending: false }).limit(1),
     supabase.from("club_teams").select("id, name, category, season").eq("status", "active").order("name"),
@@ -32,6 +34,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     supabase.from("team_players").select("player_id, team_id, status").eq("status", "active"),
     supabase.from("tournaments").select("slug,name,event_date,place", { count: "exact" }).eq("organizer_id", userId).order("event_date", { ascending: false }).limit(3),
   ]);
+  const players=visiblePlayers?.filter(player=>guardianLinks?.some(link=>link.player_id===player.id&&link.guardian_user_id===userId))??[];
+  const joinResult=await supabase.rpc("get_family_join_context");
+  const familyJoin=(joinResult.data??null) as FamilyJoinContext|null;
+  const joinLinks=await Promise.all((isCoach?memberships??[]:[]).map(async m=>{const r=await supabase.rpc("get_staff_team_join_links",{p_team:m.team_id});return {teamId:m.team_id,links:(r.data??[]) as StaffJoinLink[],error:r.error};}));
+  const joinLinksByTeam=new Map(joinLinks.map(r=>[r.teamId,r]));
   const marketingConsent = consentEvents?.[0]?.granted === true;
   const playerById = new Map(players?.map((player) => [player.id, player]));
   const guardianCount = new Map<string, number>();
@@ -76,15 +83,18 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             Pozvanie bolo úspešne odoslané e-mailom.
           </div>}
 
+          <Link className="btn-secondary mt-4" href="/pripojit-sa">Požiadať o prijatie dieťaťa do tímu{familyJoin?.requests?.filter(r=>r.status==="pending").length?` (${familyJoin.requests.filter(r=>r.status==="pending").length} čaká)`:""}</Link>
+          {joinResult.error && <p role="alert" className="mt-3 text-sm text-red-700">{joiningError(joinResult.error.message)}</p>}
           {incomingTeamInvitations.length > 0 && <div className="mt-5 space-y-3" id="timove-pozvania">
             <h3 className="font-bold text-ink">Pozvania hráča do tímu</h3>
             {incomingTeamInvitations.map((invitation) => <article className="rounded-2xl border border-arena-100 bg-arena-50 p-4" key={invitation.id}>
-              <p className="font-bold text-ink">{teamById.get(invitation.team_id)?.name ?? "Klubový tím"}</p>
+              <p className="font-bold text-ink">{teamById.get(invitation.team_id)?.name ?? "Klubový tím"} · {teamById.get(invitation.team_id)?.category} · {teamById.get(invitation.team_id)?.season}</p>
               {players?.length ? <form action={respondToTeamPlayerInvitation} className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto_auto]">
                 <input name="invitationId" type="hidden" value={invitation.id} />
-                <select className="field" name="playerId" required defaultValue=""><option value="" disabled>Vyberte hráča</option>{players.map((player) => <option key={player.id} value={player.id}>{player.full_name}</option>)}</select>
+                <select className="field" name="playerId" required defaultValue=""><option value="" disabled>Vyberte hráča</option>{players.map((player) => <option key={player.id} value={player.id}>{player.full_name}{player.birth_date?` · ročník ${String(player.birth_date).slice(0,4)}`:""}</option>)}</select>
+                <label className="flex items-start gap-2 text-sm sm:col-span-3"><input type="checkbox" name="confirmed" value="yes" required/>Potvrdzujem výber správneho dieťaťa a uvedenej kategórie.</label>
                 <button className="btn-primary justify-center" name="decision" value="accept">Prijať</button>
-                <button className="btn-secondary justify-center" name="decision" value="decline">Odmietnuť</button>
+                <button className="btn-secondary justify-center" name="decision" value="decline" formNoValidate>Odmietnuť</button>
               </form> : <p className="mt-2 text-sm text-slate-600">Najskôr si vytvorte profil hráča nižšie. Pozvanie potom môžete prijať.</p>}
             </article>)}
           </div>}
@@ -110,6 +120,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 <div><h3 className="font-extrabold text-ink">{player.full_name}</h3><p className="mt-1 text-sm text-slate-600">{player.birth_date ? `Narodenie: ${date.format(new Date(`${player.birth_date}T12:00:00Z`))} · ` : ""}{guardianCount.get(player.id) ?? 1} {(guardianCount.get(player.id) ?? 1) === 1 ? "správca" : "správcovia"}</p>{(teamsByPlayer.get(player.id)?.length ?? 0) > 0 && <div className="mt-3 flex flex-wrap gap-2">{teamsByPlayer.get(player.id)?.map((team) => <Link className="rounded-full bg-arena-100 px-3 py-1 text-xs font-bold text-arena-800 transition hover:bg-arena-200" href={`/timy/${team.id}/prehlad`} key={team.id}>Tím: {team.label} →</Link>)}</div>}</div>
                 {guardianLinks?.some((link) => link.player_id === player.id && link.guardian_user_id === userId && link.is_primary) && <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-arena-700">Hlavný rodič</span>}
               </div>
+              <Link className="btn-secondary mt-4" href={`/pripojit-sa?hrac=${player.id}`}>Požiadať o prijatie do tímu</Link>
               <details className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
                 <summary className="cursor-pointer text-sm font-bold text-arena-700">Pozvať ďalšieho rodiča alebo opatrovníka</summary>
                 <form action={inviteGuardian} className="mt-4 grid gap-3 sm:grid-cols-[1fr_10rem_auto]">
@@ -139,6 +150,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
 
         {isCoach && <div className="mt-8 border-t border-slate-200 pt-6" id="klubovy-tim">
           <h2 className="text-lg font-extrabold text-ink">Môj klubový tím</h2>
+          {!joinResult.error&&<StaffJoinRequests requests={familyJoin?.staff_requests??[]}/>}
           <p className="mt-2 text-sm text-slate-600">Vyberte konkrétny tím a požiadajte o overenie. Prístup nevznikne automaticky.</p>
           <form action={requestTeamAccess} className="mt-4 grid gap-4 sm:grid-cols-2">
             <select className="field sm:col-span-2" name="teamId" required defaultValue=""><option value="" disabled>Vyberte klub a kategóriu</option>{teams?.map((team) => <option key={team.id} value={team.id}>{team.name} · {team.season}</option>)}</select>
@@ -183,6 +195,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
                 <input className="field flex-1" name="email" type="email" required placeholder="E-mail rodiča hráča" />
                 <button className="btn-secondary justify-center" type="submit">Pozvať hráča</button>
               </form>
+              {joinLinksByTeam.get(membership.team_id)?.error?<p className="mt-3 text-sm text-red-700">Pozvánky sa nepodarilo načítať.</p>:<TeamJoinLinkManager team={{id:membership.team_id,name:teamById.get(membership.team_id)?.name??"Klubový tím",category:teamById.get(membership.team_id)?.category??"",season:teamById.get(membership.team_id)?.season??""}} links={joinLinksByTeam.get(membership.team_id)?.links??[]}/>}
             </article>)}
           </div>}
           {(claims?.length ?? 0) > 0 && <div className="mt-4 space-y-2">{claims?.map((claim) => <p className="rounded-xl bg-slate-50 px-4 py-3 text-sm" key={claim.id}>Žiadosť: <strong>{claim.status === "pending" ? "čaká na schválenie" : claim.status === "approved" ? "schválená" : "zamietnutá"}</strong></p>)}</div>}
