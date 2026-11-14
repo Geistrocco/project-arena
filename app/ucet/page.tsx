@@ -1,3 +1,4 @@
+import {TeamAccessPicker} from "@/components/team-access-picker";
 import {StaffJoinRequests,TeamJoinLinkManager} from "@/components/family-team-joining";
 import {joiningError,type FamilyJoinContext,type StaffJoinLink} from "@/lib/family-team-joining";
 import { getAccountContext } from "@/lib/account-context";
@@ -153,7 +154,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           {!joinResult.error&&<StaffJoinRequests requests={familyJoin?.staff_requests??[]}/>}
           <p className="mt-2 text-sm text-slate-600">Vyberte konkrétny tím a požiadajte o overenie. Prístup nevznikne automaticky.</p>
           <form action={requestTeamAccess} className="mt-4 grid gap-4 sm:grid-cols-2">
-            <select className="field sm:col-span-2" name="teamId" required defaultValue=""><option value="" disabled>Vyberte klub a kategóriu</option>{teams?.map((team) => <option key={team.id} value={team.id}>{team.name} · {team.season}</option>)}</select>
+            <TeamAccessPicker teams={teams??[]}/>
             <label><span className="label">Funkcia v tíme</span><select className="field" name="requestedRole" required defaultValue="coach"><option value="coach">Tréner</option><option value="manager">Vedúci tímu</option><option value="club_admin">Správca tímu</option></select></label>
             <label><span className="label">Telefónne číslo <span className="font-normal text-slate-500">(voliteľné)</span></span><input className="field" name="phone" maxLength={30} placeholder="+421 900 000 000" type="tel" /></label>
             <label className="sm:col-span-2"><span className="label">Ako môžeme overiť váš vzťah k tímu? <span className="font-normal text-slate-500">(voliteľné)</span></span><textarea className="field min-h-28 resize-y" name="message" maxLength={1000} placeholder="Môžete uviesť napríklad svoju funkciu, klubový kontakt alebo odkaz na verejný profil." /></label>

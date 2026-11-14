@@ -17,6 +17,7 @@ await db.exec(fs.readFileSync('supabase/migrations/20260908192604_add_player_gua
 await db.exec(fs.readFileSync('supabase/migrations/20260908203410_add_team_player_invitations.sql','utf8'));
 await db.exec("alter table team_players add column status text default 'active',add column inactive_at timestamptz;");
 await db.exec(fs.readFileSync('supabase/migrations/20261114152945_family_team_joining.sql','utf8'));
+await db.exec(fs.readFileSync('supabase/migrations/20261114163417_live_club_search.sql','utf8'));
 await db.exec(`insert into player_profiles(id,full_name,birth_date,created_by) values('${id(201)}','Syn A','2014-05-01','${id(1)}'),('${id(202)}','Syn B','2016-06-01','${id(1)}');insert into player_guardians(player_id,guardian_user_id) values('${id(201)}','${id(1)}'),('${id(202)}','${id(1)}'),('${id(201)}','${id(2)}');`);
 const scalar=async(q,p=[])=>Object.values((await db.query(q,p)).rows[0])[0];const user=async n=>db.query("select set_config('test.uid',$1,false)",[n?id(n):'']);
 const request=(team,child)=>scalar('select request_player_team_join($1,$2,$3)',[id(team),id(child),'Prosím o prijatie dieťaťa.']);
