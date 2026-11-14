@@ -1,3 +1,4 @@
+import { TournamentApplications } from "@/components/tournament-applications";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TournamentPlan } from "@/components/tournament-plan";
@@ -34,6 +35,7 @@ export default async function TournamentAdministration({ params, searchParams }:
 
     <div className="mt-8"><TournamentResultStatus lockedAt={plan.lockedAt} finished={plan.matches.length > 0 && finished === plan.matches.length} /></div>
     {plan.canManage && <TournamentResultLock slug={slug} lockedAt={plan.lockedAt} unfinished={plan.matches.filter((m) => m.status !== "finished" || m.home_score === null || m.away_score === null).length} matchCount={plan.matches.length} />}
+    {plan.canManage && <div className="mt-8"><TournamentApplications slug={slug} admin/></div>}
     <div className="mt-10"><TournamentPlan embedded slug={slug} groups={plan.groups} matches={plan.matches} canManage={plan.canManage} canScore={plan.canScore && !plan.lockedAt} resultsLocked={Boolean(plan.lockedAt)} /></div>
 
     {plan.canManage && <div className="mt-10 grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">

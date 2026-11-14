@@ -55,7 +55,7 @@ export async function getPublicTournaments() {
     supabase.auth.getClaims(),
   ]);
   const userId = typeof auth?.claims?.sub === "string" ? auth.claims.sub : undefined;
-  const saved = ((data as TournamentRow[] | null) ?? []).map((row) => mapTournament(row, userId));
+  const saved = (await withApplicationCounts((data as TournamentRow[] | null) ?? [],supabase)).map((row) => mapTournament(row, userId));
   saved.sort((a, b) => Number(b.isOwned) - Number(a.isOwned));
   return [...saved, ...demoTournaments.filter((demo) => !saved.some((item) => item.slug === demo.slug))];
 }
@@ -69,14 +69,14 @@ export async function getMyTournaments(): Promise<Tournament[] | null> {
     .select("slug,organizer_id,name,sport,category,event_date,place,country,region,surface,format_settings,registered_count,capacity,fee,organizer_name,playing_fields,match_duration,start_time,turnover_minutes,schedule_slot_minutes,has_lunch_break,lunch_break_start,lunch_break_duration,game_system,qualifiers_per_group,third_place_match")
     .eq("organizer_id", userId)
     .order("event_date", { ascending: false });
-  return ((data as TournamentRow[] | null) ?? []).map((row) => mapTournament(row, userId));
+  return (await withApplicationCounts((data as TournamentRow[] | null) ?? [],supabase)).map((row) => mapTournament(row, userId));
 }
 
 export async function getTournamentBySlug(slug: string) {
   const demo = demoTournaments.find((item) => item.slug === slug);
   const supabase = await createClient();
   const { data } = await supabase.from("tournaments").select("slug,name,sport,category,event_date,place,country,region,surface,format_settings,registered_count,capacity,fee,organizer_name,playing_fields,match_duration,start_time,turnover_minutes,schedule_slot_minutes,has_lunch_break,lunch_break_start,lunch_break_duration,game_system,qualifiers_per_group,third_place_match,tournament_invited_teams(team_name)").eq("slug", slug).maybeSingle();
-  return data ? mapTournament(data as TournamentRow) : demo ?? null;
+  return data ? mapTournament((await withApplicationCounts([data as TournamentRow],supabase))[0]) : demo ?? null;
 }
 
 export async function getTournamentRepeatSource(slug: string): Promise<TournamentRepeatSource | null> {
@@ -144,4 +144,10 @@ export async function getTournamentEditSource(slug: string): Promise<TournamentE
     gameSystem: (data.game_system ?? "groups_playoff") as GameSystem, qualifiersPerGroup: Number(data.qualifiers_per_group ?? 2), thirdPlaceMatch: Boolean(data.third_place_match), fee: Number(data.fee),
     tournamentType: tournamentTypes[data.tournament_type as keyof typeof tournamentTypes], teamVisibility: teamVisibilities[data.team_visibility as keyof typeof teamVisibilities],
     clubIds: teams.flatMap((team) => team.club_id ? [team.club_id] : []), customTeams: teams.flatMap((team) => team.club_id ? [] : [team.team_name]), hasResults: (count ?? 0) > 0 };
+}
+
+async function withApplicationCounts(rows: TournamentRow[], supabase: Awaited<ReturnType<typeof createClient>>) {
+  const { data } = await supabase.rpc("get_tournament_application_counts");
+  const counts = new Map(((data ?? []) as { slug: string; reserved: number }[]).map(item => [item.slug,item.reserved]));
+  return rows.map(row => ({ ...row, registered_count: counts.get(row.slug) ?? row.registered_count }));
 }
