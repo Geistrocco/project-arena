@@ -5,7 +5,7 @@ import { getAccountContext } from "@/lib/account-context";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { clubsById } from "@/data/clubs";
+import {tournamentClubIds,tournamentClubNames} from "@/lib/tournament-clubs";
 import { createTournamentPlan } from "@/lib/tournament-plan";
 import { createTennisPlan } from "@/lib/tennis-plan";
 import { resolveTournamentFormat } from "@/lib/tournament-format";
@@ -27,7 +27,7 @@ export async function createTournament(formData: FormData) {
   const lunchStart = lunchBreak ? text("lunchStart", 5) : null; const lunchDuration = lunchBreak ? number("lunchDuration") : null;
   const tournamentType = types[text("type", 30)]; const visibility = visibilities[text("visibility", 40)];
 
-  const clubIds = formData.getAll("clubIds").map(String).filter((id) => /^[a-z0-9][a-z0-9-]{0,99}$/i.test(id));
+  const clubIds = tournamentClubIds(formData);
   const customTeams = formData.getAll("customTeams").map((item) => String(item).trim().slice(0, 180)).filter((item) => item.length >= 2);
   if (name.length < 3 || sport.length < 2 || !category || place.length < 2 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("Skontrolujte základné údaje turnaja.");
   if (!isCountry(country) || !isRegion(country, region) || !isSurface(surface)) throw new Error("Vyberte krajinu, kraj a povrch turnaja.");
@@ -38,7 +38,7 @@ export async function createTournament(formData: FormData) {
   const supabase = await createClient();
   const { data: auth } = await supabase.auth.getClaims();
   if (!auth?.claims?.sub) redirect("/prihlasenie?dovod=turnaj");
-  const selectedNames = clubIds.map((id) => clubsById.get(id)?.name).filter((item): item is string => Boolean(item));
+  const selectedNames = await tournamentClubNames(supabase,clubIds);
   const teamNames = [...new Set([...selectedNames, ...customTeams])];
   if (teamNames.length > capacity) throw new Error("Počet vybraných tímov je vyšší než kapacita turnaja.");
   if (sport === "Tenis" && clubIds.length) throw new Error("V tenisovom turnaji zadajte hráčov alebo dvojice, nie futbalové kluby.");
