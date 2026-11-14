@@ -2,7 +2,7 @@
 const {PGlite}=require('@electric-sql/pglite');const fs=require('node:fs');const path=require('node:path');const Module=require('node:module');const ts=require('typescript');const assert=require('node:assert/strict');
 function load(file,stubs={}){const f=path.resolve(__dirname,'..',file);const m=new Module(f,module);m.filename=f;m.paths=Module._nodeModulePaths(path.dirname(f));const orig=m.require.bind(m);m.require=n=>stubs[n]??orig(n);m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText,f);return m.exports;}
 const calculations=load('lib/tournament-plan-calculations.ts');
-const sources=load('lib/tournament-plan-data.ts',{'@/lib/supabase/server':{},'@/lib/tournament-plan-calculations':calculations});
+const sources=load('lib/tournament-plan-data.ts',{'@/lib/supabase/server':{},'@/lib/tournament-plan-calculations':calculations,'@/lib/tennis':load('lib/tennis.ts')});
 const id=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 async function main(){const db=new PGlite();await db.exec(`create role anon;create role authenticated;create schema auth;create schema private;
 create table auth.users(id uuid primary key);

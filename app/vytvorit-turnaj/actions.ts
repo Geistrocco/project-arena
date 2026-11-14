@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { clubsById } from "@/data/clubs";
 import { createTournamentPlan } from "@/lib/tournament-plan";
+import { createTennisPlan } from "@/lib/tennis-plan";
 import { resolveTournamentFormat } from "@/lib/tournament-format";
 import { isCountry, isRegion, isSurface } from "@/lib/tournament-location";
 
@@ -40,14 +41,15 @@ export async function createTournament(formData: FormData) {
   const selectedNames = clubIds.map((id) => clubsById.get(id)?.name).filter((item): item is string => Boolean(item));
   const teamNames = [...new Set([...selectedNames, ...customTeams])];
   if (teamNames.length > capacity) throw new Error("Počet vybraných tímov je vyšší než kapacita turnaja.");
-  const format = resolveTournamentFormat(formData, { teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration });
+  if (sport === "Tenis" && clubIds.length) throw new Error("V tenisovom turnaji zadajte hráčov alebo dvojice, nie futbalové kluby.");
+  const format = resolveTournamentFormat(formData, { sport, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration });
   const { gameSystem, qualifiers, thirdPlace } = format;
   const withdrawalRule = String(formData.get("withdrawalRule") ?? "keep");
   const forfeitScore = Number(formData.get("forfeitScore") ?? 3);
   if (!["keep","annul"].includes(withdrawalRule) || !Number.isInteger(forfeitScore) || forfeitScore < 1 || forfeitScore > 999) throw new Error("Skontrolujte pravidlá kontumácie a odstúpenia.");
   const rankingRule = String(formData.get("rankingRule") ?? "head_to_head");
   if (!["head_to_head","overall","legacy"].includes(rankingRule)) throw new Error("Vyberte pravidlá rovnosti bodov.");
-  const plan = { ...createTournamentPlan({ teamNames, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem, groupSizes: format.groupSizes, finalMode: format.finalMode, qualifiersPerGroup: qualifiers ?? undefined, thirdPlaceMatch: thirdPlace }), ranking_rule: rankingRule, withdrawal_rule: withdrawalRule, forfeit_score: forfeitScore, format_settings: format.formatSettings, preferred_end: format.preferredEnd };
+  const plan = { ...(format.tennis ? createTennisPlan({ teamNames, teamCount:capacity, fieldCount:fields, matchMinutes:duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem },format.tennis) : createTournamentPlan({ teamNames, teamCount: capacity, fieldCount: fields, matchMinutes: duration, startTime, lunchBreak, lunchStart, lunchDuration, gameSystem, groupSizes: format.groupSizes, finalMode: format.finalMode, qualifiersPerGroup: qualifiers ?? undefined, thirdPlaceMatch: thirdPlace })), ranking_rule: rankingRule, withdrawal_rule: withdrawalRule, forfeit_score: forfeitScore, format_settings: format.formatSettings, preferred_end: format.preferredEnd };
   const { data: slug, error } = await supabase.rpc("create_tournament_with_location", {
     p_name: name, p_sport: sport, p_category: category, p_event_date: date, p_place: place,
     p_country: country, p_region: region, p_surface: surface,

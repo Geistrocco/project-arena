@@ -3,9 +3,9 @@ import {useActionState,useState} from "react";
 import {calculateStandings,groupResultsComplete,type PlanGroup,type PlanMatch,type Standing} from "@/lib/tournament-plan-calculations";
 import {decideTie} from "@/app/turnaje/[slug]/tie-actions";
 export function TournamentTieDecisions({slug,groups,matches,locked}:{slug:string;groups:PlanGroup[];matches:PlanMatch[];locked:boolean}){
- const tied=groups.filter(g=>calculateStandings(g,matches).some(r=>r.unresolved));
+ const tied=groups.filter(g=>matches.some(m=>m.group_id===g.id && (m.phase==="group"||m.phase==="final_group")) && calculateStandings(g,matches).some(r=>r.unresolved));
  if(!tied.length)return null;
- return <section className="mt-8 rounded-3xl border border-amber-200 bg-amber-50 p-6"><h2 className="text-2xl font-extrabold">Nerozhodnuté poradie</h2><p className="mt-3 text-sm">Body, vzájomné zápasy aj skóre sú zhodné. O poradí nerozhodne abeceda. Zadaj výsledok žrebu alebo iného rozhodnutia podľa pravidiel turnaja. Platí iba pre zhodné tímy a bude verejne uvedený aj s dôvodom.</p>{tied.map(g=><div className="mt-5" key={g.id}><h3 className="font-extrabold">{g.name}</h3>{locked?<p>Výsledky sú uzamknuté.</p>:!groupResultsComplete(g,matches)?<p>Najskôr dokonči všetky zápasy tejto skupiny.</p>:<TieForm key={g.ranking_version} slug={slug} group={g} rows={calculateStandings(g,matches)}/>}</div>)}</section>;
+ return <section className="mt-8 rounded-3xl border border-amber-200 bg-amber-50 p-6"><h2 className="text-2xl font-extrabold">Nerozhodnuté poradie</h2><p className="mt-3 text-sm">Podľa zvolených pravidiel zostáva poradie nerozhodnuté. O postupe nerozhodne abeceda ani poradie vo formulári. Zadaj výsledok žrebu alebo iného rozhodnutia podľa pravidiel turnaja. Platí iba pre zhodné tímy a bude verejne uvedený aj s dôvodom.</p>{tied.map(g=><div className="mt-5" key={g.id}><h3 className="font-extrabold">{g.name}</h3>{locked?<p>Výsledky sú uzamknuté.</p>:!groupResultsComplete(g,matches)?<p>Najskôr dokonči všetky zápasy tejto skupiny.</p>:<TieForm key={g.ranking_version} slug={slug} group={g} rows={calculateStandings(g,matches)}/>}</div>)}</section>;
 }
 function TieForm({slug,group,rows}:{slug:string;group:PlanGroup;rows:Standing[]}){
  const [names,setNames]=useState(rows.map(r=>r.name));const [state,action,pending]=useActionState(decideTie,{});

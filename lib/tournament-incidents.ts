@@ -14,7 +14,7 @@ export type TournamentIncidents = {
 };
 export type IncidentPreview = {
   version: string; action: string; target: string; winner: string | null; reason: string;
-  changes: { number: number; home: string | null; away: string | null; before_home: number | null; before_away: number | null; home_score: number; away_score: number; outcome: string }[];
+  changes: { tennis_sets?: import("./tennis").TennisSet[] | null; tennis_result?: "played"|"wo"|"retired"; tennis_winner?: "home"|"away"|null; before_tennis_sets?: import("./tennis").TennisSet[]|null; before_tennis_result?: "played"|"wo"|"retired"; before_tennis_winner?: "home"|"away"|null; before_status?: string; number: number; home: string | null; away: string | null; before_home: number | null; before_away: number | null; home_score: number; away_score: number; outcome: string }[];
   rankings: Record<string, { rows: Standing[] }>;
 };
 export function matchOutcomeLabel(match: Pick<PlanMatch,"outcome"|"status"|"home_score"|"away_score">) {
