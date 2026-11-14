@@ -8,3 +8,7 @@ out
 .env
 tmp/
 supabase/.temp/
+
+# Python import utilities
+__pycache__/
+*.pyc

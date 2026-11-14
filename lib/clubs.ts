@@ -23,15 +23,24 @@ export async function getActiveClubs(): Promise<Club[]> {
 
   try {
     const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("clubs")
-      .select("id,name,short_name,sport,country,city,logo_url,logo_placeholder,source,source_id,source_url")
-      .eq("status", "active")
-      .order("name")
-      .limit(1000)
-      .returns<ClubRow[]>();
-
-    if (error || !data?.length) return footballClubs;
+    // The full SFZ directory exceeds the Data API's default 1,000-row limit.
+    // A stable unique order prevents skipping clubs at page boundaries.
+    const data: ClubRow[] = [];
+    const pageSize = 500;
+    for (let offset = 0; ; offset += pageSize) {
+      const page = await supabase
+        .from("clubs")
+        .select("id,name,short_name,sport,country,city,logo_url,logo_placeholder,source,source_id,source_url")
+        .eq("status", "active")
+        .order("id")
+        .range(offset, offset + pageSize - 1)
+        .returns<ClubRow[]>();
+      if (page.error) throw page.error;
+      data.push(...(page.data ?? []));
+      if (!page.data || page.data.length < pageSize) break;
+    }
+    if (!data.length) return footballClubs;
+    data.sort((a, b) => a.name.localeCompare(b.name, "sk") || a.id.localeCompare(b.id));
 
     return data.map((club) => ({
       id: club.id,

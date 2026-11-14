@@ -5,7 +5,8 @@ function load(file,stubs={}){const filename=path.resolve(__dirname,'..',file),m=
 const wait=()=>new Promise(resolve=>setTimeout(resolve,210));
 async function main(){
  const search=load('lib/club-search.ts'),family=load('lib/family-team-joining.ts'),requests=[];
- const LiveTeamSearch=load('components/live-team-search.tsx',{'@/lib/club-search':search,'@/lib/family-team-joining':family,'@/lib/supabase/client':{createClient:()=>({rpc:(_name,args)=>({abortSignal:signal=>new Promise(resolve=>requests.push({query:args.p_query,signal,resolve}))})})},'@/components/family-team-joining':{ParentTeamJoin:props=>React.createElement('form',{'data-team':props.selectedTeam,'data-child':props.selectedPlayer})}}).LiveTeamSearch;
+ const hook=load('components/use-team-search.ts',{'@/lib/club-search':search,'@/lib/family-team-joining':family,'@/lib/supabase/client':{createClient:()=>({rpc:(_name,args)=>({abortSignal:signal=>new Promise(resolve=>requests.push({query:args.p_query,signal,resolve}))})})}});
+ const LiveTeamSearch=load('components/live-team-search.tsx',{'@/components/use-team-search':hook,'@/lib/family-team-joining':family,'@/components/family-team-joining':{ParentTeamJoin:props=>React.createElement('form',{'data-team':props.selectedTeam,'data-child':props.selectedPlayer})}}).LiveTeamSearch;
  let view;await act(async()=>{view=create(React.createElement(LiveTeamSearch,{players:[],selectedPlayer:'son-b'}));});
  const type=async value=>act(async()=>{view.root.findByType('input').props.onChange({target:{value}});});
  await type('h');await act(wait);assert.equal(requests.length,0);
@@ -19,8 +20,8 @@ async function main(){
  await type('  HORNÉ  ');await act(wait);assert.equal(requests[2].query,'horne');await act(async()=>{requests[2].resolve({data:null,error:{message:'EMAIL_NOT_VERIFIED'}});});assert.equal(view.root.findAllByProps({role:'alert'}).length,1);
  await type('zz');await act(wait);await act(async()=>{requests[3].resolve({data:[],error:null});});assert.ok(JSON.stringify(view.toJSON()).includes('Nenašli sa aktívne tímy'));
  await act(async()=>view.unmount());
- const Picker=load('components/team-access-picker.tsx',{'@/lib/club-search':search,'@/lib/family-team-joining':family}).TeamAccessPicker;
+ const Picker=load('components/team-access-picker.tsx',{'@/components/use-team-search':hook,'@/lib/family-team-joining':family}).TeamAccessPicker;
  await act(async()=>{view=create(React.createElement(Picker,{teams:[team,{...team,id:'c',name:'MŠK Senec',city:'Senec'}]}));});
- await act(async()=>view.root.findByType('input').props.onChange({target:{value:'dubove hor'}}));assert.equal(view.root.findAllByType('option').length,2);await act(async()=>view.root.findByType('select').props.onChange({target:{value:'b'}}));assert.equal(view.root.findByType('select').props.value,'b');await act(async()=>view.root.findByType('input').props.onChange({target:{value:'sen'}}));assert.equal(view.root.findByType('select').props.value,'');assert.ok(view.root.findByType('select').props.required);await act(async()=>view.unmount());
+ await act(async()=>view.root.findByType('input').props.onChange({target:{value:'dubove hor'}}));await act(wait);await act(async()=>requests[4].resolve({data:[team],error:null}));assert.equal(view.root.findAllByType('option').length,2);await act(async()=>view.root.findByType('select').props.onChange({target:{value:'b'}}));assert.equal(view.root.findByType('select').props.value,'b');await act(async()=>view.root.findByType('input').props.onChange({target:{value:'sen'}}));assert.equal(view.root.findByType('select').props.value,'');assert.ok(view.root.findByType('select').props.required);await act(async()=>view.unmount());
  console.log('PASS: live results, debounce, accents, stale response/abort protection, explicit team selection, child preservation, cleared confirmation, errors/empty state and coach filtering');
 }main().catch(e=>{console.error(e);process.exitCode=1});
