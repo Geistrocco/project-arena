@@ -77,6 +77,8 @@ export async function saveMatchScore(formData: FormData) {
   const { data: auth } = await supabase.auth.getClaims();
   if (!auth?.claims?.sub) redirect("/prihlasenie");
   const { error } = await supabase.rpc("update_tournament_match_score", { p_match_id: matchId, p_home_score: homeScore, p_away_score: awayScore });
+  if (error?.message.includes("SPECIAL_RESULT")) throw new Error("Kontumáciu alebo anulovanie spravuje organizátor cez Mimoriadne situácie.");
+  if (error?.message.includes("WITHDRAWN_TEAM")) throw new Error("Tím odstúpil. Jeho zápasy sa riadia pravidlom odstúpenia.");
   if (error?.message.includes("RESULTS_LOCKED")) throw new Error("Výsledky sú uzamknuté. Organizátor ich musí pred opravou odomknúť.");
   if (error?.message.includes("UNRESOLVED_QUALIFIER")) throw new Error("Postupujúci ešte nie sú určení. Dokončite skupiny a vyriešte zhodné poradie.");
   if (error?.message.includes("DEPENDENT_RESULTS_EXIST")) throw new Error("Nadväzujúce zápasy už majú výsledky. Tento výsledok skupiny nemožno zmeniť bez vyriešenia nadväzností.");
