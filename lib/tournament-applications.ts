@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 export type Application = { id: string; team_id: string; team_name: string; status: "pending" | "accepted" | "rejected"; contact_name: string; contact_email: string; phone: string; note: string; decision_reason: string | null; created_at: string };
 export async function getApplicationContext(slug: string) {
   const supabase = await createClient();
-  const [{ data: { user } }, { data: tournament }] = await Promise.all([supabase.auth.getUser(), supabase.from("tournaments").select("id,organizer_id,category,publication_status,tournament_type").eq("slug",slug).maybeSingle()]);
+  const [{ data: { user } }, { data: tournament }] = await Promise.all([supabase.auth.getUser(), supabase.from("tournaments").select("id,organizer_id,category,publication_status,tournament_type,registration_closed_at").eq("slug",slug).maybeSingle()]);
   if (!tournament) return { user, tournament: null, teams: [], applications: [] as Application[], error: false };
   if (!user) return { user, tournament, teams: [], applications: [] as Application[], error: false };
   const [{ data: applications, error }, { data: memberships }] = await Promise.all([
