@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 
-type StaffRole = "coach" | "manager" | "club_admin";
+type StaffRole = "coach" | "manager" | "club_admin" | "platform_admin";
 
 export type MyTeam = {
   id: string;
@@ -13,7 +13,7 @@ export type MyTeam = {
   activePlayerCount: number;
 };
 
-type Membership = { team_id: string; role: StaffRole };
+type Membership = { team_id: string; role: Exclude<StaffRole,"platform_admin"> };
 type GuardianLink = { player_id: string };
 type TeamPlayer = { team_id: string; player_id: string };
 type TeamRecord = { id: string; name: string; category: string; season: string };
@@ -25,12 +25,14 @@ export async function getMyTeams() {
   const userId = typeof auth?.claims?.sub === "string" ? auth.claims.sub : null;
   if (authError || !userId) return { userId: null, teams: [] as MyTeam[] };
 
-  const [{ data: membershipData, error: membershipError }, { data: guardianData, error: guardianError }] = await Promise.all([
+  const [{ data: membershipData, error: membershipError }, { data: guardianData, error: guardianError }, {data: platformRole,error: roleError}] = await Promise.all([
     supabase.from("team_memberships").select("team_id, role").eq("user_id", userId),
     supabase.from("player_guardians").select("player_id").eq("guardian_user_id", userId),
+    supabase.from("user_roles").select("role").eq("user_id",userId).maybeSingle(),
   ]);
-  if (membershipError || guardianError) throw new Error("Tímy sa nepodarilo načítať.");
+  if (membershipError || guardianError || roleError) throw new Error("Tímy sa nepodarilo načítať.");
 
+  const isPlatformAdmin=Boolean(platformRole&&["owner","admin"].includes(platformRole.role));
   const memberships = (membershipData as Membership[] | null) ?? [];
   const guardianLinks = (guardianData as GuardianLink[] | null) ?? [];
   const playerIds = guardianLinks.map((link) => link.player_id);
@@ -68,7 +70,7 @@ export async function getMyTeams() {
     if (rosterError) throw new Error("Tím sa nepodarilo načítať.");
     return {
       ...team,
-      staffRole: membership?.role ?? null,
+      staffRole: membership?.role ?? (isPlatformAdmin?"platform_admin" as const:null),
       ownPlayerNames,
       activePlayerCount: ((roster as RosterPlayer[] | null) ?? []).filter((player) => player.status === "active").length,
     };

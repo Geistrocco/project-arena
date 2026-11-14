@@ -3,6 +3,8 @@ export type JoinTeam = {id:string;name:string;category:string;season:string;city
 export type FamilyJoinRequest = {id:string;team_id:string;team_name:string;category:string;season:string;player_id:string;player_name:string;status:"pending"|"approved"|"rejected"|"cancelled";message:string;review_reason:string|null;created_at:string;can_cancel:boolean};
 export type StaffJoinRequest = {id:string;team_id:string;team_name:string;category:string;season:string;player_id:string;player_name:string;birth_year:number|null;parent_email:string;message:string;created_at:string};
 export type FamilyJoinContext = {players:FamilyPlayer[];requests:FamilyJoinRequest[];staff_requests:StaffJoinRequest[]};
+export type StaffJoinRequestPage = {total:number;requests:StaffJoinRequest[]};
+export type TeamJoinSummary = {total:number;teams:Array<{team_id:string;name:string;category:string;season:string;pending_count:number}>};
 export type StaffJoinLink = {id:string;created_at:string;expires_at:string;used_at:string|null;revoked_at:string|null;player_name:string|null};
 export function playerLabel(p:FamilyPlayer){return `${p.name}${p.birth_date?` · ročník ${p.birth_date.slice(0,4)}`:" · ročník neuvedený"}`;}
 export function teamLabel(t:Pick<JoinTeam,"name"|"category"|"season">){return `${t.name} · ${t.category} · sezóna ${t.season}`;}

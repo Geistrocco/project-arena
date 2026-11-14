@@ -1,5 +1,6 @@
+import {PlayerRequestAlert} from "@/components/player-request-alert";
 import {StaffJoinRequests,TeamJoinLinkManager} from "@/components/family-team-joining";
-import type {FamilyJoinContext,StaffJoinLink} from "@/lib/family-team-joining";
+import type {StaffJoinRequestPage,StaffJoinLink} from "@/lib/family-team-joining";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowIcon, CalendarIcon, TrophyIcon, UsersIcon } from "@/components/icons";
@@ -16,7 +17,7 @@ type Nomination = {
   pending_count: number;
 };
 
-const staffRoleNames = { coach: "Tréner", manager: "Vedúci tímu", club_admin: "Administrátor klubu" } as const;
+const staffRoleNames = { coach: "Tréner", manager: "Vedúci tímu", club_admin: "Administrátor klubu", platform_admin: "Administrátor platformy" } as const;
 const eventNames = { match: "Zápas", tournament: "Turnaj", training: "Tréning", other: "Iná udalosť" } as const;
 const dateTime = new Intl.DateTimeFormat("sk-SK", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Bratislava" });
 
@@ -34,8 +35,8 @@ export default async function TeamDashboardPage({ params }: { params: Promise<{ 
     supabase.rpc("get_team_chat_unread_count", { p_team_id: teamId }),
   ]);
   if (error) throw new Error("Tímový prehľad sa nepodarilo načítať.");
-  const [joinRequests,joinLinks]=team.staffRole?await Promise.all([supabase.rpc("get_family_join_context"),supabase.rpc("get_staff_team_join_links",{p_team:teamId})]):[{data:null,error:null},{data:[],error:null}];
-  const joinContext=joinRequests.data as FamilyJoinContext|null;
+  const [joinRequests,joinLinks]=team.staffRole?await Promise.all([supabase.rpc("get_staff_join_requests",{p_team:teamId,p_offset:0}),supabase.rpc("get_staff_team_join_links",{p_team:teamId})]):[{data:null,error:null},{data:[],error:null}];
+  const joinQueue=joinRequests.data as StaffJoinRequestPage|null;
   const nominations = (data as Nomination[] | null) ?? [];
   const now = new Date().getTime();
   const upcoming = nominations
@@ -46,7 +47,7 @@ export default async function TeamDashboardPage({ params }: { params: Promise<{ 
 
   return <section className="mx-auto max-w-6xl px-5 py-12 sm:py-16">
     {teams.length > 1 && <Link className="text-sm font-bold text-arena-700" href="/moj-tim">← Všetky moje tímy</Link>}
-    <div className={`${teams.length > 1 ? "mt-5" : ""} flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between`}><div><p className="eyebrow">{team.staffRole ? staffRoleNames[team.staffRole] : "Rodičovský prístup"}</p><h1 className="mt-2 text-3xl font-extrabold text-ink sm:text-4xl">{team.name}</h1><p className="mt-2 text-slate-600">{team.category} · sezóna {team.season}</p>{team.ownPlayerNames.length > 0 && <p className="mt-2 text-sm font-semibold text-arena-800">Moje {team.ownPlayerNames.length === 1 ? "dieťa" : "deti"}: {team.ownPlayerNames.join(", ")}</p>}</div>{canManage && <div className="flex flex-wrap gap-3"><Link className="btn-secondary" href={`/timy/${teamId}/nominacie#nova-nominacia`}>Nová nominácia</Link><Link className="btn-primary" href={`/timy/${teamId}/kalendar`}>Pridať tréning</Link></div>}</div>
+    <div className={`${teams.length > 1 ? "mt-5" : ""} flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between`}><div><p className="eyebrow">{team.staffRole ? staffRoleNames[team.staffRole] : "Rodičovský prístup"}</p><h1 className="mt-2 text-3xl font-extrabold text-ink sm:text-4xl">{team.name}</h1><p className="mt-2 text-slate-600">{team.category} · sezóna {team.season}</p>{team.ownPlayerNames.length > 0 && <p className="mt-2 text-sm font-semibold text-arena-800">Moje {team.ownPlayerNames.length === 1 ? "dieťa" : "deti"}: {team.ownPlayerNames.join(", ")}</p>}</div>{canManage && <div className="space-y-3 sm:max-w-md">{joinRequests.error?<p role="alert" className="text-sm text-red-700">Žiadosti sa nepodarilo načítať.</p>:<PlayerRequestAlert teamOnly count={joinQueue?.total??0} href={`/ziadosti-hracov?tim=${teamId}`}/>}<div className="flex flex-wrap gap-3"><Link className="btn-secondary" href={`/timy/${teamId}/nominacie#nova-nominacia`}>Nová nominácia</Link><Link className="btn-primary" href={`/timy/${teamId}/kalendar`}>Pridať tréning</Link></div></div>}</div>
 
     <Link className="btn-secondary mt-6" href="/treningy">Potvrdiť tréningy detí na celý týždeň</Link>
     <div className="mt-8 rounded-3xl bg-ink p-6 text-white shadow-sm sm:p-8">{nextEvent ? <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-extrabold uppercase tracking-[0.18em] text-arena-400">Najbližšie · {eventNames[nextEvent.event_type]}</p><h2 className="mt-3 text-2xl font-extrabold">{nextEvent.title}</h2><p className="mt-2 text-slate-300">{dateTime.format(new Date(nextEvent.starts_at))}{nextEvent.location ? ` · ${nextEvent.location}` : ""}</p><p className="mt-3 text-sm font-bold text-amber-300">{nextEvent.pending_count} {nextEvent.pending_count === 1 ? "odpoveď čaká" : "odpovedí čaká"}</p></div><Link className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-extrabold text-ink transition hover:bg-slate-100" href={`/nominacie/${nextEvent.nomination_id}`}>Otvoriť detail <ArrowIcon className="h-4 w-4" /></Link></div> : <div><p className="text-xs font-extrabold uppercase tracking-[0.18em] text-arena-400">Najbližšia udalosť</p><h2 className="mt-3 text-2xl font-extrabold">Kalendár je zatiaľ voľný</h2><p className="mt-2 text-slate-300">Nové tréningy, zápasy a turnaje sa zobrazia práve tu.</p></div>}</div>
@@ -60,7 +61,7 @@ export default async function TeamDashboardPage({ params }: { params: Promise<{ 
     </div>
 
     {canManage && <div className="mt-6 space-y-5">
-      {joinRequests.error ? <p role="alert">Žiadosti sa nepodarilo načítať.</p> : <StaffJoinRequests requests={(joinContext?.staff_requests??[]).filter(request=>request.team_id===teamId)}/>}
+      {joinRequests.error ? <p role="alert">Žiadosti sa nepodarilo načítať.</p> : <><Link className="btn-secondary" href={`/ziadosti-hracov?tim=${teamId}`}>Všetky žiadosti hráčov ({joinQueue?.total??0})</Link><StaffJoinRequests requests={joinQueue?.requests??[]}/></>}
       <details className="rounded-2xl border border-slate-200 p-5"><summary className="cursor-pointer font-bold">Pozvať rodiča do tímu</summary><Link className="btn-secondary mt-4" href="/ucet#moje-timy">Poslať pozvanie e-mailom</Link>{joinLinks.error ? <p role="alert">Pozvánky sa nepodarilo načítať.</p> : <TeamJoinLinkManager team={{id:teamId,name:team.name,category:team.category,season:team.season}} links={(joinLinks.data??[]) as StaffJoinLink[]}/>}</details>
     </div>}
 
