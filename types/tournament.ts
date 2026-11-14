@@ -15,7 +15,7 @@ export interface Tournament {
   surface?: string | null;
   registered: number;
   capacity: number;
-  participantLabel: "tímov" | "hráčov";
+  participantLabel: "tímov" | "hráčov" | "dvojíc";
   fee: number;
   status: RegistrationStatus;
   organizer: string;
