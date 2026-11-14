@@ -33,3 +33,16 @@ Nové tabuľky majú RLS a nemajú priame oprávnenia pre `anon` ani `authentica
 - `node scripts/test-auth-errors.cjs`
 
 Migráciu `20261114152945_family_team_joining.sql` nasadiť spolu s aplikáciou po schválení zlúčenia. Lokálne testy neposielajú skutočné pozvánky a nemenia produkčné dáta.
+
+## Priebežné vyhľadávanie klubov
+
+Rodič vidí možnosti od dvoch znakov počas písania (180 ms od posledného stlačenia). Výber návrhu otvorí prihlásenie konkrétneho dieťaťa do presnej kategórie a sezóny. Zmena hľadaného výrazu zruší vybraný tím aj jeho potvrdenie; odpovede starších vyhľadávaní sa ignorujú. Oprávnenia na prijatie sa nemenia.
+
+Vyhľadávanie porovnáva časti slov kdekoľvek v názve klubu, názve tímu, meste, kategórii a sezóne, bez diakritiky a bez ohľadu na poradie slov. Všetky zadané časti musia sedieť. Napríklad `hor` zodpovedá názvom Horná Dolná aj Horné Dubové; `dubove u12` spresní kategóriu. Zobrazí sa najviac 40 tímov s výzvou na spresnenie. Prázdne, jednoznakové a príliš dlhé dotazy neposkytujú výsledky. Vyhľadávanie nezahŕňa neaktívne tímy ani kluby.
+
+Tréner má priebežný filter existujúcich tímov pri žiadosti o správu. Pri pozývaní klubov na turnaj funguje rovnaké porovnávanie bez diakritiky a v ľubovoľnom poradí slov. Databázová migrácia `20261114163417_live_club_search.sql` aktualizuje existujúce vyhľadávacie RPC, zachováva overenie používateľa a jeho oprávnenia.
+
+Doplnené kontroly:
+
+- `NODE_PATH=../test-tools/node_modules node scripts/test-live-club-search.cjs` (`@electric-sql/pglite`)
+- `NODE_PATH=../test-tools/node_modules node scripts/test-live-team-search-ui.cjs` (testovacie `react` a `react-test-renderer` vo verzii aplikácie)
