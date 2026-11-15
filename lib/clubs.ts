@@ -59,3 +59,25 @@ export async function getActiveClubs(): Promise<Club[]> {
     return footballClubs;
   }
 }
+
+// Tournament invitations must identify a squad, never infer one from its club.
+export async function getTournamentClubs(): Promise<Club[]> {
+  const clubs = await getActiveClubs();
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return clubs;
+  const supabase = await createClient();
+  const byClub = new Map<string, NonNullable<Club["teams"]>>();
+  for (let offset = 0; ; offset += 500) {
+    const {data, error} = await supabase.from("club_teams")
+      .select("id,club_id,name,category,season").eq("status", "active")
+      .order("id").range(offset, offset + 499);
+    if (error) throw new Error("Kategórie klubov sa nepodarilo načítať. Skús stránku obnoviť.");
+    for (const team of data ?? []) {
+      const teams = byClub.get(team.club_id) ?? [];
+      teams.push({id:team.id, name:team.name, category:team.category, season:team.season});
+      byClub.set(team.club_id, teams);
+    }
+    if (!data || data.length < 500) break;
+  }
+  return clubs.map(club => ({...club, teams:(byClub.get(club.id) ?? []).sort((a,b) =>
+    b.season.localeCompare(a.season) || a.category.localeCompare(b.category,"sk",{numeric:true}) || a.name.localeCompare(b.name,"sk"))}));
+}

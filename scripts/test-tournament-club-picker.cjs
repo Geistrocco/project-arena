@@ -3,15 +3,28 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 function load(file,stubs={}){const filename=path.resolve(__dirname,'..',file),m=new Module(filename,module);m.filename=filename;m.paths=Module._nodeModulePaths(path.dirname(filename));const orig=m.require.bind(m);m.require=n=>n==='react'?React:n==='react/jsx-runtime'?toolRequire(n):Object.hasOwn(stubs,n)?stubs[n]:orig(n);m._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,filename);return m.exports;}
 async function main(){
  const match=load('lib/club-search.ts'),icons=new Proxy({}, {get:()=>()=>null});const Picker=load('components/club-picker.tsx',{'@/lib/club-search':match,'@/components/icons':icons}).ClubPicker;
+
  const base={shortName:'',sport:'football',country:'Slovensko',city:'',logoPlaceholder:'FK'};
- const clubs=[...Array.from({length:10},(_,i)=>({...base,id:'generic-'+i,name:'Horný klub '+i})),{...base,id:'sportnet:sk-horna-dolna.futbalnet.sk',name:'ŠK Horná Dolná',shortName:'Horna Dolna'}, {...base,id:'sportnet:issf_club_123',name:'ŠK Horné Dubové',city:'Horné Dubové'},...Array.from({length:39},(_,i)=>({...base,id:'other-'+i,name:'Horné miesto '+i})),{...base,id:'senec',name:'MŠK Senec'}];
- function Harness({initial=[]}){const [selected,setSelected]=React.useState(initial);return React.createElement(Picker,{clubs,selected,onChange:setSelected});}
- let view;await act(async()=>{view=create(React.createElement(Harness));});const input=()=>view.root.findByProps({type:'search'});const type=async value=>act(async()=>input().props.onChange({target:{value}}));
- await type('h');assert.equal(view.root.findAllByType('ul').length,0);await type('hor');assert.equal(view.root.findByType('ul').findAllByType('li').length,40);assert.ok(JSON.stringify(view.toJSON()).includes('ŠK Horná Dolná'));assert.ok(JSON.stringify(view.toJSON()).includes('ŠK Horné Dubové'));
- const more=view.root.findAllByType('button').find(b=>Array.isArray(b.props.children)&&b.props.children[0]==='Zobraziť ďalšie kluby (');assert.ok(more);await act(async()=>more.props.onClick());assert.equal(view.root.findByType('ul').findAllByType('li').length,51);
- await type('dubove hor');assert.equal(view.root.findByType('ul').findAllByType('li').length,1);await type('HORNÁ DOL');assert.equal(view.root.findByType('ul').findAllByType('li').length,1);await act(async()=>view.root.findByType('ul').findByType('button').props.onClick());let selected=view.root.findAllByProps({name:'clubIds'});assert.equal(selected.length,1);assert.equal(selected[0].props.value,'sportnet:sk-horna-dolna.futbalnet.sk');assert.equal(input().props.value,'');assert.equal(view.root.findAllByType('ul').length,0);
- await type('horna dolna');assert.equal(view.root.findAllByType('ul').length,0,'selected clubs cannot be added twice');let prevented=false;input().props.onKeyDown({key:'Enter',preventDefault:()=>{prevented=true;}});assert.ok(prevented);await act(async()=>input().props.onKeyDown({key:'Escape'}));assert.equal(input().props.value,'');assert.equal(view.root.findByType('details').props.open,undefined,'custom names are a separate collapsed choice');
- await act(async()=>view.root.findByProps({'aria-label':'Odstrániť ŠK Horná Dolná'}).props.onClick());assert.equal(view.root.findAllByProps({name:'clubIds'}).length,0);
- await act(async()=>view.update(React.createElement(Harness,{key:'old',initial:['unavailable-club']})));selected=view.root.findAllByProps({name:'clubIds'});assert.equal(selected[0].props.value,'unavailable-club','editing never silently removes unavailable original selections');assert.ok(JSON.stringify(view.toJSON()).includes('Klub už nie je v aktívnom adresári'));await act(async()=>view.unmount());
- console.log('PASS: live accent-insensitive fragments, matches after the seventh result, show-more, unordered words, imported hidden IDs, no duplicate selection/accidental submit and explicit unavailable choices');
+ const squad=(id,name,category,season='2026/27')=>({id,name,category,season});
+ const clubs=[{...base,id:'senec',name:'MŠK Senec',teams:[squad('a','MŠK Senec U12 A','U12'),squad('b','MŠK Senec U12 B','U12 B'),squad('c','MŠK Senec U13 A','U13')]},{...base,id:'none',name:'Horná bez kategórií'},...Array.from({length:51},(_,i)=>({...base,id:'hor-'+i,name:'ŠK Horná Dolná '+i,teams:[squad('hor-'+i,'Horná U12 '+i,'U12')]})),{...base,id:'hockey',sport:'Hokej',name:'MŠK Senec hokej',teams:[squad('h','MŠK Senec U12 hokej','U12')]}];
+ function Harness({initial=[]}){const [selected,setSelected]=React.useState(initial);return React.createElement(Picker,{clubs,sport:'Futbal',selected,onChange:setSelected});}
+ let view;await act(async()=>{view=create(React.createElement(Harness));});
+ const input=()=>view.root.findByProps({type:'search'}),type=async value=>act(async()=>input().props.onChange({target:{value}})),json=()=>JSON.stringify(view.toJSON());
+ await type('h');assert.equal(view.root.findAllByType('ul').length,0);
+ await type('hor');assert.equal(view.root.findByType('ul').findAllByType('li').length,40);
+ const more=view.root.findAllByType('button').find(b=>Array.isArray(b.props.children)&&b.props.children[0]==='Zobraziť ďalšie družstvá (');await act(async()=>more.props.onClick());assert.equal(view.root.findByType('ul').findAllByType('li').length,52);
+ assert.ok(view.root.findByType('ul').findAllByType('button').some(b=>b.props.disabled),'clubs without categories cannot be invited');
+ await type('senec');assert.equal(view.root.findByType('ul').findAllByType('li').length,3,'sport filter excludes hockey');assert.ok(json().includes('2026/27'));
+ await act(async()=>view.root.findByType('ul').findAllByType('button')[0].props.onClick());
+ assert.equal(view.root.findByProps({name:'clubIds'}).props.value,'team:a');
+ assert.equal(view.root.findByType('ul').findAllByType('li').length,2,'same club still offers its other squads');
+ await act(async()=>view.root.findByType('ul').findAllByType('button')[0].props.onClick());
+ assert.deepEqual(view.root.findAllByProps({name:'clubIds'}).map(i=>i.props.value),['team:a','team:b']);
+ await type('B U12 senec');assert.equal(view.root.findAllByType('ul').length,0);assert.ok(!json().includes('+ Pridať'));
+ await type('HORNA DOL');assert.equal(view.root.findByType('ul').findAllByType('li').length,40);
+ await act(async()=>view.root.findByProps({'aria-label':'Odstrániť MŠK Senec U12 A'}).props.onClick());assert.equal(view.root.findAllByProps({name:'clubIds'}).length,1);
+ await act(async()=>view.update(React.createElement(Harness,{key:'old',initial:['senec','team:missing']})));
+ assert.deepEqual(view.root.findAllByProps({name:'clubIds'}).map(i=>i.props.value),['senec','team:missing']);assert.ok(json().includes('Starší výber bez kategórie'));assert.ok(json().includes('Nedostupné družstvo'));
+ let prevented=false;input().props.onKeyDown({key:'Enter',preventDefault:()=>{prevented=true;}});assert.ok(prevented);
+ await act(async()=>view.unmount());console.log('PASS: category/season/A-B selection, multiple squads per club, live search, sport, paging, disabled club-only entries and retained legacy/unavailable selections');
 }main().catch(e=>{console.error(e);process.exitCode=1});

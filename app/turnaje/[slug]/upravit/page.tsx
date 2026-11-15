@@ -1,13 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import { CreateTournamentForm } from "@/components/create-tournament-form";
-import { getActiveClubs } from "@/lib/clubs";
+import { getTournamentClubs } from "@/lib/clubs";
 import { getTournamentEditSource } from "@/lib/tournaments";
 import { getTournamentPlan } from "@/lib/tournament-plan-data";
 
 export const metadata = { title: "Upraviť turnaj" };
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const [clubs, editSource] = await Promise.all([getActiveClubs(), getTournamentEditSource(slug)]);
+  const [clubs, editSource] = await Promise.all([getTournamentClubs(), getTournamentEditSource(slug)]);
   if (!editSource) notFound();
   const plan = await getTournamentPlan(slug);
   if (plan?.lockedAt) redirect(`/turnaje/${slug}/administracia`);

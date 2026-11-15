@@ -1,0 +1,41 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Exercise squad identity against real PostgreSQL functions. */
+const {PGlite}=require('@electric-sql/pglite'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const id=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
+const sql=f=>fs.readFileSync(path.resolve(__dirname,'../supabase/migrations',f),'utf8');
+async function main(){const db=new PGlite();await db.exec(`
+create role anon;create role authenticated;create schema auth;create schema private;
+create table auth.users(id uuid primary key);create table profiles(id uuid,full_name text);
+create function auth.uid() returns uuid language sql as $$select nullif(current_setting('test.uid',true),'')::uuid$$;
+create function private.is_platform_admin(uuid) returns boolean language sql as $$select false$$;
+create table clubs(id text primary key,name text,status text default 'active');
+create table club_teams(id uuid primary key,club_id text references clubs(id),name text,category text,season text,status text default 'active');
+`);
+await db.exec(sql('20260910080206_persist_tournaments.sql'));
+await db.exec(`insert into auth.users values('${id(1)}'),('${id(2)}');insert into profiles values('${id(1)}','Organizer');
+insert into clubs(id,name) values('senec','MŠK Senec');
+insert into club_teams values('${id(10)}','senec','MŠK Senec U12 A','U12','2026/27','active'),('${id(11)}','senec','MŠK Senec U12 B','U12 B','2026/27','active'),('${id(12)}','senec','MŠK Senec U13 A','U13','2026/27','inactive');
+select set_config('test.uid','${id(1)}',false);
+alter table tournaments add column start_time time default '09:00',add column turnover_minutes int default 3,add column schedule_slot_minutes int default 20,add column has_lunch_break boolean default false,add column lunch_break_start time,add column lunch_break_duration int,add column game_system text default 'round_robin',add column qualifiers_per_group int,add column third_place_match boolean default false;
+create table tournament_groups(id uuid primary key default gen_random_uuid(),tournament_id uuid references tournaments(id) on delete cascade,code text,name text,sort_order integer);
+create table tournament_group_teams(tournament_id uuid,group_id uuid references tournament_groups(id) on delete cascade,slot_number integer,team_name text);
+create table tournament_matches(id uuid primary key default gen_random_uuid(),tournament_id uuid,group_id uuid references tournament_groups(id) on delete cascade,phase text,round_number integer,match_number integer,starts_at time,field_number integer,home_team_name text,away_team_name text,home_source text,away_source text,status text default 'scheduled');
+`);
+const scalar=async(q,p=[])=>Object.values((await db.query(q,p)).rows[0])[0];
+const create=ids=>scalar("select create_tournament('Cup','Futbal','U12',current_date+30,'Senec',4,1,15,0,'public','all',$1,array[]::text[])",[ids]);
+await create(['senec']);const oldBefore=(await db.query('select * from tournament_invited_teams')).rows;
+await db.exec(sql('20261115084624_tournament_category_invitations.sql'));
+const oldAfter=(await db.query('select tournament_id,club_id,team_name,created_at from tournament_invited_teams')).rows;assert.deepEqual(oldAfter,oldBefore,'migration does not alter legacy invitations');
+const cup=await create(['team:'+id(10),'team:'+id(11)]);let rows=(await db.query('select i.* from tournament_invited_teams i join tournaments t on t.id=i.tournament_id where t.slug=$1 order by team_name',[cup])).rows;
+assert.deepEqual(rows.map(r=>r.club_team_id),[id(10),id(11)]);assert.deepEqual(rows.map(r=>r.club_id),['senec','senec']);
+const update=(slug,ids,confirm=false)=>db.query("select update_tournament_with_plan($1,'Edited','Futbal','U12',current_date+30,'Senec',4,1,15,0,'public','all',$2,array[]::text[],'09:00',3,20,false,null,null,'round_robin',null,false,'{\"groups\":[],\"teams\":[],\"matches\":[]}', $3)",[slug,ids,confirm]);
+await update(cup,['team:'+id(10),'team:'+id(11)]);assert.deepEqual((await db.query('select i.* from tournament_invited_teams i join tournaments t on t.id=i.tournament_id where t.slug=$1 order by team_name',[cup])).rows,rows,'unchanged edit retains identities and timestamps');
+const tid=rows[0].tournament_id;await db.query("insert into tournament_matches(tournament_id,status,home_team_name,away_team_name) values($1,'finished','MŠK Senec U12 A','MŠK Senec U12 B')",[tid]);
+const snapshot=await scalar('select jsonb_agg(to_jsonb(m)) from tournament_matches m');await assert.rejects(()=>update(cup,['team:'+id(10)]),/RESET_CONFIRMATION_REQUIRED/);assert.deepEqual(await scalar('select jsonb_agg(to_jsonb(m)) from tournament_matches m'),snapshot,'failed edit leaves scores untouched');
+await assert.rejects(()=>create(['team:'+id(12)]),/TEAM_INACTIVE/);await assert.rejects(()=>create(['team:bad']),/INVALID_TEAM/);await assert.rejects(()=>create(['missing']),/CLUB_INACTIVE/);
+await db.exec(`insert into club_teams values('${id(13)}','senec','MŠK Senec U12 A','U12','2027/28','active')`);await assert.rejects(()=>create(['team:'+id(10),'team:'+id(13)]),/DUPLICATE_TEAM_NAME/);
+await db.exec(`select set_config('test.uid','${id(2)}',false)`);await assert.rejects(()=>update(cup,['team:'+id(10)]),/Not allowed/);
+assert.equal(await scalar("select has_function_privilege('anon','create_tournament(text,text,text,date,text,integer,integer,integer,numeric,text,text,text[],text[])','execute')"),false);
+assert.equal(await scalar("select has_function_privilege('authenticated','private.resolve_tournament_squads(text[])','execute')"),false);
+await db.exec("select set_config('test.uid','',false)");await assert.rejects(()=>create(['team:'+id(10)]),/Not authenticated/);
+await db.close();console.log('PASS: category/A-B identity, atomic create/edit, legacy preservation, no-op edits, invalid/inactive/ambiguous squads, result reset guard and ownership');}
+main().catch(e=>{console.error(e);process.exitCode=1});
