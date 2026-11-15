@@ -93,13 +93,13 @@ export async function getTournamentRepeatSource(slug: string): Promise<Tournamen
 
   const { data } = await supabase
     .from("tournaments")
-    .select("slug,organizer_id,name,sport,category,ranking_rule,withdrawal_rule,forfeit_score,place,country,region,surface,format_settings,preferred_finish,capacity,playing_fields,match_duration,start_time,has_lunch_break,lunch_break_start,lunch_break_duration,game_system,qualifiers_per_group,third_place_match,fee,tournament_type,team_visibility,tournament_invited_teams(club_id,team_name)")
+    .select("slug,organizer_id,name,sport,category,ranking_rule,withdrawal_rule,forfeit_score,place,country,region,surface,format_settings,preferred_finish,capacity,playing_fields,match_duration,start_time,has_lunch_break,lunch_break_start,lunch_break_duration,game_system,qualifiers_per_group,third_place_match,fee,tournament_type,team_visibility,tournament_invited_teams(club_id,club_team_id,team_name)")
     .eq("slug", slug)
     .eq("organizer_id", userId)
     .maybeSingle();
   if (!data) return null;
 
-  const teams = (data.tournament_invited_teams ?? []) as { club_id: string | null; team_name: string }[];
+  const teams = (data.tournament_invited_teams ?? []) as { club_id: string | null; club_team_id: string | null; team_name: string }[];
   const tournamentTypes = { public: "Verejný", invitation: "Pozvánkový", combined: "Kombinovaný" } as const;
   const teamVisibilities = { all: "Zobrazovať všetkým", accepted: "Iba prijatým tímom", hidden: "Nezobrazovať" } as const;
   return {
@@ -127,8 +127,8 @@ export async function getTournamentRepeatSource(slug: string): Promise<Tournamen
     fee: Number(data.fee),
     tournamentType: tournamentTypes[data.tournament_type as keyof typeof tournamentTypes],
     teamVisibility: teamVisibilities[data.team_visibility as keyof typeof teamVisibilities],
-    clubIds: teams.flatMap((team) => team.club_id ? [team.club_id] : []),
-    customTeams: teams.flatMap((team) => team.club_id ? [] : [team.team_name]),
+    clubIds: teams.flatMap((team) => team.club_team_id ? [`team:${team.club_team_id}`] : team.club_id ? [team.club_id] : []),
+    customTeams: teams.flatMap((team) => team.club_team_id || team.club_id ? [] : [team.team_name]),
   };
 }
 
@@ -139,12 +139,12 @@ export async function getTournamentEditSource(slug: string): Promise<TournamentE
   const { data: auth } = await supabase.auth.getClaims();
   const userId = auth?.claims?.sub;
   if (!userId) return null;
-  const { data } = await supabase.from("tournaments").select("id,slug,organizer_id,name,sport,category,ranking_rule,withdrawal_rule,forfeit_score,event_date,place,country,region,surface,format_settings,preferred_finish,capacity,playing_fields,match_duration,start_time,has_lunch_break,lunch_break_start,lunch_break_duration,game_system,qualifiers_per_group,third_place_match,fee,tournament_type,team_visibility,tournament_invited_teams(club_id,team_name)").eq("slug", slug).eq("organizer_id", userId).maybeSingle();
+  const { data } = await supabase.from("tournaments").select("id,slug,organizer_id,name,sport,category,ranking_rule,withdrawal_rule,forfeit_score,event_date,place,country,region,surface,format_settings,preferred_finish,capacity,playing_fields,match_duration,start_time,has_lunch_break,lunch_break_start,lunch_break_duration,game_system,qualifiers_per_group,third_place_match,fee,tournament_type,team_visibility,tournament_invited_teams(club_id,club_team_id,team_name)").eq("slug", slug).eq("organizer_id", userId).maybeSingle();
   if (!data) return null;
   const { count } = await supabase.from("tournament_matches").select("id", { count: "exact", head: true }).eq("tournament_id", data.id).eq("status", "finished");
   const { data: incidentRules, error: incidentRulesError } = await supabase.rpc("get_tournament_incidents", { p_slug: slug });
   if (incidentRulesError) throw new Error("Pravidlá turnaja sa nepodarilo načítať.");
-  const teams = (data.tournament_invited_teams ?? []) as { club_id: string | null; team_name: string }[];
+  const teams = (data.tournament_invited_teams ?? []) as { club_id: string | null; club_team_id: string | null; team_name: string }[];
   const tournamentTypes = { public: "Verejný", invitation: "Pozvánkový", combined: "Kombinovaný" } as const;
   const teamVisibilities = { all: "Zobrazovať všetkým", accepted: "Iba prijatým tímom", hidden: "Nezobrazovať" } as const;
   return { rankingRule: data.ranking_rule as RankingRule, withdrawalRule: data.withdrawal_rule as WithdrawalRule, forfeitScore: data.forfeit_score, slug: data.slug, name: data.name, sport: data.sport, category: data.category, eventDate: data.event_date, place: data.place, country: data.country as TournamentCountry, region: data.region, surface: data.surface, formatSettings: data.format_settings as TournamentRepeatSource["formatSettings"], preferredFinish: data.preferred_finish ? String(data.preferred_finish).slice(0, 5) : null,
@@ -152,7 +152,7 @@ export async function getTournamentEditSource(slug: string): Promise<TournamentE
     lunchBreak: Boolean(data.has_lunch_break), lunchStart: String(data.lunch_break_start ?? "12:00").slice(0, 5), lunchDuration: Number(data.lunch_break_duration ?? 45),
     gameSystem: (data.game_system ?? "groups_playoff") as GameSystem, qualifiersPerGroup: Number(data.qualifiers_per_group ?? 2), thirdPlaceMatch: Boolean(data.third_place_match), fee: Number(data.fee),
     tournamentType: tournamentTypes[data.tournament_type as keyof typeof tournamentTypes], teamVisibility: teamVisibilities[data.team_visibility as keyof typeof teamVisibilities],
-    clubIds: teams.flatMap((team) => team.club_id ? [team.club_id] : []), customTeams: teams.flatMap((team) => team.club_id ? [] : [team.team_name]), hasResults: (count ?? 0) > 0, rulesFrozen: Boolean(incidentRules?.rules_frozen) };
+    clubIds: teams.flatMap((team) => team.club_team_id ? [`team:${team.club_team_id}`] : team.club_id ? [team.club_id] : []), customTeams: teams.flatMap((team) => team.club_team_id || team.club_id ? [] : [team.team_name]), hasResults: (count ?? 0) > 0, rulesFrozen: Boolean(incidentRules?.rules_frozen) };
 }
 
 async function withApplicationCounts(rows: TournamentRow[], supabase: Awaited<ReturnType<typeof createClient>>) {

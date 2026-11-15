@@ -1,4 +1,7 @@
+export type ClubTeamOption = { id: string; name: string; category: string; season: string };
+
 export interface Club {
+  teams?: ClubTeamOption[];
   id: string;
   name: string;
   shortName: string;
