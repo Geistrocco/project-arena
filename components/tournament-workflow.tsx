@@ -18,8 +18,8 @@ export async function TournamentWorkflow({slug,date,finished,matchCount,locked}:
   return <section className={`mt-6 rounded-3xl border p-5 sm:p-6 ${color}`} aria-label="Stav prípravy turnaja">
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="eyebrow">Ďalší krok</p><h2 className="mt-2 text-2xl font-extrabold">{next.title}</h2><p className="mt-2 max-w-2xl text-sm text-slate-600">{next.description}</p></div><Link className="btn-primary shrink-0 justify-center" href={next.href}>{next.label}</Link></div>
     <p className="mt-5 font-bold">Obsadenosť: {context.participants.length} / {context.capacity} tímov</p>
-    <dl className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4"><Count label="Prijaté prihlášky" value={accepted}/><Count label="Ručne zadané tímy" value={manual}/><Count label="Čakajúce prihlášky" value={context.pending} href="#prihlaska"/><Count label="Voľné miesta" value={Math.max(0,context.capacity-context.participants.length)}/></dl>
-    <p className="mt-3 text-xs text-slate-600">{context.closed?"Prihlášky sú uzavreté. Účastníci boli potvrdení pri rozlosovaní.":"Čakajúce prihlášky nezaberajú miesto. Ručne zadané tímy sa potvrdia pri rozlosovaní."}</p>
+    <dl className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5"><Count label="Prijaté prihlášky" value={accepted}/><Count label="Potvrdené pozvánky a ručné tímy" value={manual}/><Count label="Čakajúce prihlášky" value={context.pending} href="#prihlaska"/><Count label="Čakajúce pozvánky" value={context.invitation_pending??0} href="#pozvanky"/><Count label="Voľné miesta" value={Math.max(0,context.capacity-context.participants.length)}/></dl>
+    <p className="mt-3 text-xs text-slate-600">{context.closed?"Prihlášky sú uzavreté. Účastníci boli potvrdení pri rozlosovaní.":"Čakajúce pozvánky ešte nie sú potvrdení účastníci. Rozlosovanie použije potvrdené tímy; vlastné ručne zadané názvy skontroluj pred rozlosovaním."}</p>
     {context.pending>0&&next.kind!=="pending"&&<Link className="mt-3 inline-block text-sm font-bold underline" href="#prihlaska">Skontrolovať zostávajúce prihlášky ({context.pending}) →</Link>}
   </section>;
 }

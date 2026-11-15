@@ -69,10 +69,17 @@ export function AuthForm({ mode, verificationError = false, suspended = false, r
       if (!result.error) {
         if (privateTesting) {
           const {data: access,error: accessError} = await supabase.rpc("get_site_access");
-          if (accessError || !access?.allowed) {
+          const inviteToken=/^\/turnajova-pozvanka\/([a-f0-9]{64})$/.exec(nextPath)?.[1];
+          const invitation=inviteToken?await supabase.rpc("get_tournament_invitation",{p_token:inviteToken}):null;
+          if ((accessError || !access?.allowed) && (!invitation?.data || invitation.error)) {
             await supabase.auth.signOut({scope:"local"});
             setError(true);
             setMessage("Stránka je v súkromnom testovaní. Tento účet zatiaľ nemá prístup.");
+            return;
+          }
+          if (!access?.allowed && invitation?.data && !invitation.error) {
+            router.push(nextPath);
+            router.refresh();
             return;
           }
         }
@@ -134,7 +141,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false, r
     <section className="mx-auto max-w-md px-5 py-16 sm:py-24">
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <p className="eyebrow">Tournio</p>
-        <h1 className="mt-2 text-3xl font-extrabold text-ink">{titles[mode]}</h1>{privateTesting&&<p className="mt-3 text-sm text-slate-600">Súkromné testovanie pre už zaregistrované účty. Registrácia je dočasne zatvorená.</p>}
+        <h1 className="mt-2 text-3xl font-extrabold text-ink">{titles[mode]}</h1>{privateTesting&&<p className="mt-3 text-sm text-slate-600">{nextPath.startsWith("/turnajova-pozvanka/")?"Prihlásenie k pozvánke. Tento prístup neotvára ostatné časti uzavretej aplikácie.":"Súkromné testovanie pre už zaregistrované účty. Registrácia je dočasne zatvorená."}</p>}
         <form className="mt-8 space-y-5" onSubmit={submit}>
           {mode === "signup" && <fieldset className="space-y-3"><legend className="label">Ako chceš používať Tournio?</legend><label className="flex gap-3 rounded-xl border border-slate-200 p-4"><input type="radio" name="accountMode" value="parent" required/><span><strong className="block">Rodič / hráč</strong><span className="text-sm text-slate-600">Moje deti, tímy, tréningy a potvrdenia účasti.</span></span></label><label className="flex gap-3 rounded-xl border border-slate-200 p-4"><input type="radio" name="accountMode" value="coach" required/><span><strong className="block">Tréner / organizátor</strong><span className="text-sm text-slate-600">Správa tímov a turnajov aj všetky možnosti rodiča vrátane pridania vlastného dieťaťa.</span></span></label></fieldset>}
           {mode === "signup" && <Field label="Meno a priezvisko" name="name" autoComplete="name" />}
@@ -157,7 +164,7 @@ export function AuthForm({ mode, verificationError = false, suspended = false, r
         </form>
         {mode === "login" && confirmationEmail && <button className="btn-secondary mt-4 w-full justify-center" disabled={pending} type="button" onClick={() => void resendConfirmation()}>Poslať nový potvrdzovací e-mail</button>}
         <div className="mt-6 space-y-2 text-center text-sm text-slate-600">
-          {mode === "login" && <><p><Link className="font-semibold text-arena-700 hover:underline" href={authHref("/zabudnute-heslo")}>Zabudli ste heslo?</Link></p>{!privateTesting&&<p>Nemáte účet? <Link className="font-semibold text-arena-700 hover:underline" href={authHref("/registracia")}>Zaregistrovať sa</Link></p>}</>}
+          {mode === "login" && <><p><Link className="font-semibold text-arena-700 hover:underline" href={authHref("/zabudnute-heslo")}>Zabudli ste heslo?</Link></p>{(!privateTesting||nextPath.startsWith("/turnajova-pozvanka/"))&&<p>Nemáte účet? <Link className="font-semibold text-arena-700 hover:underline" href={nextPath.startsWith("/turnajova-pozvanka/")?`${nextPath}/registracia`:authHref("/registracia")}>Zaregistrovať sa</Link></p>}</>}
           {mode === "signup" && <p>Už máte účet? <Link className="font-semibold text-arena-700 hover:underline" href={authHref("/prihlasenie")}>Prihlásiť sa</Link></p>}
           {(mode === "forgot" || mode === "reset") && <p><Link className="font-semibold text-arena-700 hover:underline" href={authHref("/prihlasenie")}>Späť na prihlásenie</Link></p>}
         </div>

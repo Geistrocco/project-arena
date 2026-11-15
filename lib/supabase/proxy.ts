@@ -26,6 +26,7 @@ export async function updateSession(request: NextRequest) {
   const {data: accessData,error: accessError} = await supabase.rpc("get_site_access");
   const access = parseSiteAccess(accessData,accessError);
   const protectResponse = (target: NextResponse) => {
+    if (request.nextUrl.pathname.startsWith("/turnajova-pozvanka/")) target.headers.set("Referrer-Policy","no-referrer");
     if (access.restricted) {
       target.headers.set("Cache-Control", "private, no-store, max-age=0");
       target.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");

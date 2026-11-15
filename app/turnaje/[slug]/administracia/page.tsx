@@ -1,3 +1,4 @@
+import {TournamentInvitations} from "@/components/tournament-invitations";
 import {TournamentWorkflow} from "@/components/tournament-workflow";
 import { TournamentIncidentsPanel } from "@/components/tournament-incidents";
 import { TournamentTieDecisions } from "@/components/tournament-tie-decisions";
@@ -42,6 +43,7 @@ export default async function TournamentAdministration({ params, searchParams }:
     <div className="mt-8"><TournamentResultStatus lockedAt={plan.lockedAt} finished={plan.matches.length > 0 && finished === plan.matches.length} /></div>
     {plan.canManage && <div id="potvrdenie-vysledkov" className="scroll-mt-40"><TournamentResultLock slug={slug} lockedAt={plan.lockedAt} unfinished={plan.matches.filter((m) => m.status !== "finished" || m.home_score === null || m.away_score === null).length} matchCount={plan.matches.length} /></div>}
     {plan.canManage && tournament.sport !== "Tenis" && !plan.lockedAt && !plan.matches.some(m=>m.status==="finished"||m.home_score!==null||m.away_score!==null) && <div className="mt-8 rounded-2xl border border-arena-200 bg-arena-50 p-5"><h2 className="text-xl font-extrabold">Účastníci a rozlosovanie</h2><p className="mt-2 text-sm text-slate-600">Skontroluj prijaté a ručne pridané tímy, pozri náhľad skupín a uzavri prihlášky. Existujúce výsledky sú chránené.</p><Link className="btn-primary mt-4" href={`/turnaje/${slug}/rozlosovanie`}>Pripraviť rozlosovanie z účastníkov</Link></div>}
+    {plan.canManage && tournament.sport !== "Tenis" && <TournamentInvitations slug={slug}/>}
     {plan.canManage && tournament.sport !== "Tenis" && <div className="mt-8"><TournamentApplications slug={slug} admin/></div>}
     {plan.canManage && tournament.sport !== "Tenis" && <TournamentIncidentsPanel slug={slug} groups={plan.groups} matches={plan.matches} incidents={plan.incidents} locked={Boolean(plan.lockedAt)} sport={tournament.sport}/>}
     {plan.canManage && <TournamentTieDecisions slug={slug} groups={plan.groups} matches={plan.matches} locked={Boolean(plan.lockedAt)}/>}
