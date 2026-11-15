@@ -27,3 +27,7 @@ update private.site_access_settings set restricted=false where singleton;
 Pôvodné RLS a oprávnenia zostávajú platné v oboch režimoch. Ak bude treba pridať ďalšieho testera, musí byť ručne schválený a vložený do `private.site_testers`; žiadny verejný RPC na udeľovanie prístupu neexistuje.
 
 Overenie: `test-private-site-sql.cjs` a `test-private-site-proxy.cjs`, `pnpm check`, `pnpm build`. SQL test pokrýva existujúce aj nové účty, anonymné požiadavky, RPC/GraphQL, ochranu zoznamu, hook, staged rollout a opätovné otvorenie. Proxy test pokrýva priame/PDF/API/POST prístupy, obnovu hesla, cookies, noindex/no-store, pozastavenie účtu a zlyhanie kontroly.
+
+## Turnajové pozvánky
+
+Po nasadení pozvánok existuje výnimka pre platný token na `/turnajova-pozvanka/<token>` a registráciu k nemu. Externý účet môže čítať danú pozvánku a odoslať odpoveď na overenie organizátorom. Nezíska tým všeobecný beta prístup. Data API povoľuje iba tokenom chránené pozvánkové RPC; ostatné tabuľky a funkcie ostávajú uzavreté. Podrobnosti sú v `tournament-invitation-links.md`.
