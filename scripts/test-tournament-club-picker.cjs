@@ -4,7 +4,7 @@ function load(file,stubs={}){const filename=path.resolve(__dirname,'..',file),m=
 async function main(){
  const match=load('lib/club-search.ts'),icons=new Proxy({}, {get:()=>()=>null});const Picker=load('components/club-picker.tsx',{'@/lib/club-search':match,'@/components/icons':icons}).ClubPicker;
 
- const base={shortName:'',sport:'Futbal',country:'Slovensko',city:'',logoPlaceholder:'FK'};
+ const base={shortName:'',sport:'football',country:'Slovensko',city:'',logoPlaceholder:'FK'};
  const squad=(id,name,category,season='2026/27')=>({id,name,category,season});
  const clubs=[{...base,id:'senec',name:'MŠK Senec',teams:[squad('a','MŠK Senec U12 A','U12'),squad('b','MŠK Senec U12 B','U12 B'),squad('c','MŠK Senec U13 A','U13')]},{...base,id:'none',name:'Horná bez kategórií'},...Array.from({length:51},(_,i)=>({...base,id:'hor-'+i,name:'ŠK Horná Dolná '+i,teams:[squad('hor-'+i,'Horná U12 '+i,'U12')]})),{...base,id:'hockey',sport:'Hokej',name:'MŠK Senec hokej',teams:[squad('h','MŠK Senec U12 hokej','U12')]}];
  function Harness({initial=[]}){const [selected,setSelected]=React.useState(initial);return React.createElement(Picker,{clubs,sport:'Futbal',selected,onChange:setSelected});}

@@ -4,9 +4,11 @@ import {matchesClubSearch} from "@/lib/club-search";
 import type { Club } from "@/types/club";
 import { CloseIcon, SearchIcon } from "@/components/icons";
 
+const sportCodes: Record<string,string> = {Futbal:"football",Hokej:"hockey",Florbal:"floorball",Basketbal:"basketball"};
+
 export function ClubPicker({ clubs, selected, onChange, initialCustomTeams = [], sport }: { sport?: string; clubs: Club[]; selected: string[]; onChange: (ids: string[]) => void; initialCustomTeams?: string[] }) {
   const [query, setQuery] = useState(""); const [visible,setVisible]=useState(40); const searchId=useId(); const [custom, setCustom] = useState(""); const [customTeams, setCustomTeams] = useState<string[]>(initialCustomTeams);
-  const options = useMemo(() => clubs.filter(club=>!sport||club.sport===sport).flatMap(club=>
+  const options = useMemo(() => clubs.filter(club=>!sport||club.sport===sport||club.sport.toLowerCase()===sportCodes[sport]).flatMap(club=>
     club.teams?.length ? club.teams.map(team=>({id:`team:${team.id}`,club,name:team.name,category:team.category,season:team.season,selectable:true}))
       : [{id:club.id,club,name:club.name,category:"",season:"",selectable:false}]),[clubs,sport]);
   const allMatches = useMemo(() => options.filter(item=>matchesClubSearch(query,item.club.name,item.club.shortName,item.club.city,item.name,item.category,item.season)&&!selected.includes(item.id)),[options,query,selected]);
