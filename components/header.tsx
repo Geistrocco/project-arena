@@ -48,6 +48,9 @@ export function Header() {
     setUnread(0);
     setUserId(null);
     setOpen(false);
+    // A full navigation clears the private page after signing out.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign("/");
   }
   return (
     <header className="sticky top-0 z-40 border-b border-ink/10 bg-[#fbfcf8]/90 backdrop-blur-xl">
